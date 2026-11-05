@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start -H 127.0.0.1"
+    "start": "next start -H 127.0.0.1",
+    "monitor:check": "node --env-file=.env.local --import tsx scripts/monitor-check.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
