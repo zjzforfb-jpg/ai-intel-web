@@ -5,6 +5,8 @@ let pool: Pool | null = null;
 
 function getPool(): Pool {
   if (pool) return pool;
+  // 共享接口（并行开发约定）：需要直接跑 SQL 的模块统一用 getReadPool()
+  // 本文件其余导出保持不变，只追加不改签名
 
   const host = process.env.DB_HOST || "postgres";
   const port = Number(process.env.DB_PORT) || 5432;
@@ -31,6 +33,9 @@ function getPool(): Pool {
 
   return pool;
 }
+
+/** 共享只读连接池（并行开发约定的公共入口，仅 SELECT） */
+export const getReadPool = getPool;
 
 export interface ReportRow {
   id: number;
