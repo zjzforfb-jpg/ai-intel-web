@@ -56,12 +56,13 @@ export async function GET(request: Request) {
     ]);
     return NextResponse.json({ ok: true, ...list, facets });
   } catch (error) {
+    console.error("[api] 数据库操作失败:", error instanceof Error ? error.message : error);
     console.error("[api/opportunities] GET failed:", error);
     return NextResponse.json(
       {
         ok: false,
         errors: { form: "数据库查询失败" },
-        detail: error instanceof Error ? error.message : String(error),
+        // 详情只进服务端日志，响应不回传（防信息泄露）
       },
       { status: 500 }
     );
@@ -86,12 +87,13 @@ export async function POST(request: Request) {
     const item = await createOpportunity(result.value);
     return NextResponse.json({ ok: true, item }, { status: 201 });
   } catch (error) {
+    console.error("[api] 数据库操作失败:", error instanceof Error ? error.message : error);
     console.error("[api/opportunities] POST failed:", error);
     return NextResponse.json(
       {
         ok: false,
         errors: { form: "数据库写入失败" },
-        detail: error instanceof Error ? error.message : String(error),
+        // 详情只进服务端日志，响应不回传（防信息泄露）
       },
       { status: 500 }
     );

@@ -24,7 +24,7 @@ function serverError(action: string, error: unknown) {
     {
       ok: false,
       errors: { form: "数据库操作失败" },
-      detail: error instanceof Error ? error.message : String(error),
+      // 详情只进服务端日志，响应不回传（防信息泄露）
     },
     { status: 500 }
   );
@@ -43,6 +43,7 @@ export async function GET(_request: Request, { params }: Ctx) {
     }
     return NextResponse.json({ ok: true, item });
   } catch (error) {
+    console.error("[api] 数据库操作失败:", error instanceof Error ? error.message : error);
     return serverError("GET", error);
   }
 }
@@ -72,6 +73,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
     return NextResponse.json({ ok: true, item });
   } catch (error) {
+    console.error("[api] 数据库操作失败:", error instanceof Error ? error.message : error);
     return serverError("PATCH", error);
   }
 }
@@ -89,6 +91,7 @@ export async function DELETE(_request: Request, { params }: Ctx) {
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error("[api] 数据库操作失败:", error instanceof Error ? error.message : error);
     return serverError("DELETE", error);
   }
 }
