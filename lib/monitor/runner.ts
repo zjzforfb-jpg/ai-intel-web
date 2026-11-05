@@ -128,8 +128,9 @@ export async function runChecks(options: RunChecksOptions = {}): Promise<RunChec
   }
 
   // 幂等设计：monitor_runs 忠实记录每一次执行（重复/失败也记），不做去重合并；
-  // 幂等只针对「通知」——makeDedupKey 稳定键 + isNotified 查重 + INSERT ON CONFLICT DO NOTHING 三重保证
-  // 同一结论不重复打扰（见下方通知段）。写库失败不抛出，保留内存结果继续走通知。
+  // 幂等只针对「通知」——makeDedupKey 稳定键 + isNotified 查重 + saveNotificationLog upsert
+  // （sent 不被降级、failed 可被 sent 补记）共同保证同一结论不重复打扰（见下方通知段）。
+  // 写库失败不抛出，保留内存结果继续走通知。
   const saved = await saveCheckRun(run).catch(() => null);
 
   // 恢复状态记录：本轮 ok 且同目标上一次为 warn/error（真实跃迁）→ notifications 留恢复事件（幂等）

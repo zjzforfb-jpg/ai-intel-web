@@ -202,6 +202,12 @@ export async function getMonitorOverview(): Promise<{
   }
 }
 
+/**
+ * 通知日志写入（upsert 语义）：
+ * 同 dedup_key 不产生重复行；冲突时仅当「新状态为 sent」或「旧状态非 sent」才更新
+ * status/error——failed/skipped 占位后允许被后续 sent 补记，而 sent 不被 failed/skipped 降级，
+ * 保证 isNotified（只认 sent）与实际送达状态一致、不反复重试。
+ */
 export async function saveNotificationLog(
   runId: number,
   dedupKey: string,
@@ -212,7 +218,10 @@ export async function saveNotificationLog(
     await client.query(
       `INSERT INTO monitor_notifications (run_id, dedup_key, status, error)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (dedup_key) DO NOTHING`,
+       ON CONFLICT (dedup_key) DO UPDATE SET
+         status = EXCLUDED.status,
+         error = EXCLUDED.error
+       WHERE EXCLUDED.status = 'sent' OR monitor_notifications.status <> 'sent'`,
       [runId, dedupKey, result.status, result.reason ?? null]
     );
   } finally {

@@ -133,7 +133,7 @@ test("链路：saveCheckRun→getRunById→listCheckRuns→saveNotificationLog�
   }
 });
 
-test("幂等：dedup_key 重复插入不报错（ON CONFLICT DO NOTHING），markRunNotified 恢复记录同键幂等", async () => {
+test("幂等：dedup_key 重复写入不产生重复行，markRunNotified 恢复记录同键幂等", async () => {
   const run = testRun();
   const tag = run.summary.slice(0, 42);
   try {
@@ -156,6 +156,39 @@ test("幂等：dedup_key 重复插入不报错（ON CONFLICT DO NOTHING），mar
     const recovery = notifs.filter((n) => n.dedup_key.startsWith("recovery:"));
     assert.strictEqual(recovery.length, 1);
     assert.strictEqual(recovery[0].channel, "recovery");
+  } finally {
+    await cleanupTestRuns(tag);
+  }
+});
+
+test("saveNotificationLog upsert：failed 可补记 sent，sent 不被 failed 降级", async () => {
+  const run = testRun();
+  const tag = run.summary.slice(0, 42);
+  try {
+    const saved = await saveCheckRun(run);
+
+    // failed 占位 → 后续 sent 补记升级
+    const key1 = `__test__${randomUUID()}`;
+    await saveNotificationLog(saved.id, key1, { status: "failed", reason: "首发失败" });
+    assert.strictEqual(await isNotified(key1), false);
+    await saveNotificationLog(saved.id, key1, { status: "sent" });
+    let notifs = await listNotifications(saved.id);
+    assert.strictEqual(notifs.length, 1);
+    assert.strictEqual(notifs[0].status, "sent");
+    assert.strictEqual(notifs[0].error, null); // 升级 sent 后 error 清空
+    assert.strictEqual(await isNotified(key1), true);
+
+    // sent → failed 不降级（sent 是终态）
+    const key2 = `__test__${randomUUID()}`;
+    await saveNotificationLog(saved.id, key2, { status: "sent" });
+    await saveNotificationLog(saved.id, key2, { status: "failed", reason: "不应降级" });
+    notifs = await listNotifications(saved.id);
+    assert.strictEqual(notifs.length, 2);
+    const kept = notifs.find((n) => n.dedup_key === key2);
+    assert.ok(kept);
+    assert.strictEqual(kept.status, "sent");
+    assert.strictEqual(kept.error, null);
+    assert.strictEqual(await isNotified(key2), true);
   } finally {
     await cleanupTestRuns(tag);
   }
