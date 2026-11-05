@@ -6,7 +6,8 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "monitor:check": "node --env-file=.env.local --import tsx scripts/monitor-check.ts"
+    "monitor:check": "node --env-file=.env.local --import tsx scripts/monitor-check.ts",
+    "test": "node --env-file=.env.local --import tsx --test --test-concurrency=1 tests/rules.test.ts tests/store.test.ts tests/notify.test.ts tests/integration/monitor.test.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
