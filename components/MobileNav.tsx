@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Newspaper, Archive, TrendingUp, Info } from "lucide-react";
+import { Newspaper, Archive, TrendingUp, Crosshair, Info } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "今日情报", icon: Newspaper },
   { href: "/history", label: "历史报告", icon: Archive },
   { href: "/trends", label: "趋势观察", icon: TrendingUp },
+  { href: "/topics", label: "专题追踪", icon: Crosshair },
   { href: "/about", label: "关于平台", icon: Info },
 ];
 
