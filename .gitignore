@@ -31,7 +31,12 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# 所有含密码的本地环境变量文件一律不提交
 .env*
+!.env.example
+
+# 本地凭据文件（只读用户密码等）
+.pg-credentials.txt
 
 # vercel
 .vercel

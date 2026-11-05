@@ -1,26 +1,247 @@
 @import "tailwindcss";
 
+/* 深色科技风色板：使用标准 :root 变量，避免 Turbopack 对 @theme 的解析告警 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-bg-base: #070b14;
+  --color-bg-panel: #0d1421;
+  --color-bg-card: #111b2e;
+  --color-bg-card-hover: #162238;
+  --color-border-subtle: #1e2d44;
+  --color-border-glow: #2a3f5f;
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #9ba8b8;
+  --color-text-muted: #6b7689;
+  --color-accent: #6366f1;
+  --color-accent-light: #818cf8;
+  --color-accent-glow: rgba(99, 102, 241, 0.15);
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-link: #60a5fa;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  background: var(--color-bg-base);
+  /* 锚点跳转平滑滚动；不影响浏览器前进/后退与原生锚点定位 */
+  scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-glow);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* 玻璃质感卡片 */
+.glass-card {
+  background: rgba(17, 27, 46, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.glass-card:hover {
+  border-color: var(--color-border-glow);
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8, #6366f1, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 发光效果 */
+.glow-accent {
+  box-shadow: 0 0 20px var(--color-accent-glow);
+}
+
+/* Markdown 渲染样式（长文阅读：标题 22–28px / 正文 17px / 行高 1.9） */
+.prose-report h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 1.75rem 0 1.1rem;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: 0.6rem;
+  scroll-margin-top: 90px;
+}
+.prose-report h2 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 2.25rem 0 0.9rem;
+  color: var(--color-accent-light);
+  scroll-margin-top: 90px;
+}
+.prose-report h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.6rem;
+  color: var(--color-text-primary);
+  scroll-margin-top: 90px;
+}
+.prose-report {
+  /* 长串（URL、模型名、代码标识）一律在容器内断行，避免横向溢出 */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.prose-report p {
+  margin: 0.85rem 0;
+  line-height: 1.9;
+  color: var(--color-text-secondary);
+  font-size: 1.0625rem;
+}
+.prose-report ul, .prose-report ol {
+  margin: 0.7rem 0;
+  padding-left: 1.6rem;
+}
+.prose-report ul { list-style: disc; }
+.prose-report ol { list-style: decimal; }
+.prose-report li {
+  margin: 0.5rem 0;
+  line-height: 1.9;
+  color: var(--color-text-secondary);
+  font-size: 1.0625rem;
+}
+/* 无序列表里的二级缩进列表更紧凑 */
+.prose-report li > ul, .prose-report li > ol {
+  margin: 0.3rem 0;
+}
+.prose-report strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+.prose-report a {
+  color: var(--color-link);
+  text-decoration: none;
+  /* 原始日报里存在超长 URL，必须允许在任意位置断行，否则小屏会被撑出横向滚动 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.prose-report a:hover {
+  text-decoration: underline;
+}
+.prose-report blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.prose-report table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.1rem 0;
+  font-size: 0.95rem;
+}
+.prose-report th, .prose-report td {
+  border: 1px solid var(--color-border-subtle);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.prose-report th {
+  background: var(--color-bg-panel);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.prose-report code {
+  font-family: var(--font-mono);
+  background: var(--color-bg-panel);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.925rem;
+  color: var(--color-accent-light);
+}
+.prose-report pre {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+.prose-report pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose-report hr {
+  border: none;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: 1.5rem 0;
+}
+
+/* 打印 / 另存为 PDF：隐藏导航、按钮、目录与进度条，保留完整正文与报告信息 */
+@page {
+  margin: 16mm 14mm;
+}
+
+@media print {
+  /* 全局导航与交互元素 */
+  aside, header, nav, button, [data-print-hide] { display: none !important; }
+
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* 正文区域恢复整页宽度，避免被屏幕端宽度限制截断 */
+  .prose-report {
+    max-width: none !important;
+  }
+
+  .glass-card {
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    break-inside: auto;
+  }
+
+  /* 打印稿整体转为白底黑字（含报告头部标题、日期、徽标文字） */
+  body, body * {
+    color: #111 !important;
+  }
+
+  .prose-report a, .glass-card a {
+    color: #1d4ed8 !important;
+    text-decoration: underline;
+  }
+
+  /* 标题不与后续内容分页断开 */
+  .prose-report h1, .prose-report h2, .prose-report h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .prose-report table, .prose-report pre, .prose-report blockquote {
+    break-inside: avoid;
+  }
 }
