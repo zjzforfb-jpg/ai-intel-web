@@ -134,6 +134,33 @@ test("report_date 非法值：Invalid Date 与非法日历日期均报 INVALID_F
   assert.equal(future[0].code, "FUTURE_DATE");
 });
 
+test("report_date 跨日边界 Date：按 Asia/Shanghai 口径取日，缺失判定正确", () => {
+  // 2026-11-05T00:00+09:00 = 上海 2026-11-04 23:00（跨日边界）→ 归一化为 2026-11-04
+  const edge = new Date("2026-11-05T00:00:00+09:00") as unknown as string;
+  const a = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: edge })], expectedDates: ["2026-11-04"] }));
+  assert.deepEqual(a, []); // 不误报 INVALID_FIELDS / FUTURE_DATE / MISSING_REPORT
+
+  // 上海午夜 2026-11-05 00:00（= UTC 2026-11-04T16:00Z，pg 本地午夜 Date 的等价表示）→ 归一化为 2026-11-05
+  const midnight = new Date("2026-11-04T16:00:00Z") as unknown as string;
+  const b = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: midnight })], expectedDates: [TODAY] }));
+  assert.deepEqual(b, []);
+
+  // Date 归一化日期参与缺失判定：只有 11-04 的 Date 报告、预期 11-05 → 正确报 MISSING_REPORT
+  const c = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: edge })], expectedDates: [TODAY] }));
+  assert.deepEqual(codes(c), ["MISSING_REPORT"]);
+  assert.equal(c[0].meta?.date, TODAY);
+});
+
+test("generated_at 兼容 Date 对象：合法时间戳不误报，Invalid Date 报 INVALID_FIELDS", () => {
+  const ok = new Date("2026-11-05T08:30:00+08:00") as unknown as string;
+  assert.deepEqual(runQualityChecks(makeCtx({ reports: [makeReport({ generated_at: ok })], expectedDates: [TODAY] })), []);
+
+  const bad = runQualityChecks(makeCtx({ reports: [makeReport({ generated_at: new Date("garbage") as unknown as string })] }));
+  assert.equal(bad.length, 1);
+  assert.equal(bad[0].code, "INVALID_FIELDS");
+  assert.equal(bad[0].meta?.field, "generated_at");
+});
+
 /* ------------------------- 缺失 / 重复 ------------------------- */
 
 test("MISSING_REPORT：每个预期缺失日期各报一条 error", () => {

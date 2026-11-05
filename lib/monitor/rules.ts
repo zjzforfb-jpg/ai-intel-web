@@ -49,7 +49,7 @@ const SHANGHAI_DATE_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Sha
  * 2) "YYYY-MM-DD" 或 "YYYY-MM-DD ..." 带后缀的字符串（::text 查询路径，与 runner 的 slice(0,10) 口径一致）。
  * 统一归一为 YYYY-MM-DD；非法日历日期（如 2026-13-45）、Invalid Date 返回 null。
  */
-function normalizeDate(raw: unknown): string | null {
+function normalizeDate(raw: string | Date | null | undefined): string | null {
   if (raw instanceof Date) {
     if (Number.isNaN(raw.getTime())) return null;
     // Date 只代表某个日历日，用 Asia/Shanghai（与 runner/展示时区一致）取回该日期，避免本地时区漂移
@@ -75,6 +75,13 @@ function addDays(date: string, delta: number): string {
 /** 标题归一化：小写并去掉空白/标点/符号，仅保留字母与数字（含 CJK），用于雷同判定 */
 function normalizeTitle(title: string): string {
   return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/** 时间戳判非法：null、空白串、Invalid Date（pg timestamp 列会返回 Date 对象）均视为缺失或非法 */
+function isInvalidTimestamp(raw: string | Date | null | undefined): boolean {
+  if (raw == null) return true;
+  if (raw instanceof Date) return Number.isNaN(raw.getTime());
+  return String(raw).trim() === "";
 }
 
 function sortedEntries(byDate: Map<string, ReportRow[]>): Array<[string, ReportRow[]]> {
@@ -205,11 +212,12 @@ function checkRow(r: ReportRow, ctx: QualityCheckContext, issues: QualityIssue[]
       meta: { ...base, field: "headline_count", headline_count: r.headline_count, total_articles: r.total_articles },
     });
   }
-  if (r.generated_at == null || !String(r.generated_at).trim()) {
+  if (isInvalidTimestamp(r.generated_at)) {
+    // generated_at 是 timestamp 列，pg 同样可能返回 Date 对象：null/空白/Invalid Date 均判非法
     issues.push({
       code: "INVALID_FIELDS",
       severity: "error",
-      message: `${where} 缺少 generated_at`,
+      message: `${where} 的 generated_at 缺失或非法`,
       meta: { ...base, field: "generated_at" },
     });
   }
