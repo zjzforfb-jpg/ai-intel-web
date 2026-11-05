@@ -40,12 +40,22 @@ const VALIDATION_FLAGS = ["has_content", "has_core_judgment", "has_headlines"] a
 /** markdown_length 与实际长度允许的最大相对偏差（严格大于才触发） */
 const LENGTH_DRIFT_LIMIT = 0.2;
 
+/** Date 对象 → 日历日的取法口径（与 runner 的 todayShanghai 同为 Asia/Shanghai） */
+const SHANGHAI_DATE_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" });
+
 /**
- * 宽松取日期：允许 "YYYY-MM-DD ..." 带后缀（与 runner 的 slice(0,10) 口径一致），
- * 非法日历日期（如 2026-13-45）返回 null。
+ * 宽松取日期：兼容两种真实输入 ——
+ * 1) pg 对 DATE 列返回的 Date 对象（postgres-date 用本地时区午夜构造，runner 的 SELECT * 路径）；
+ * 2) "YYYY-MM-DD" 或 "YYYY-MM-DD ..." 带后缀的字符串（::text 查询路径，与 runner 的 slice(0,10) 口径一致）。
+ * 统一归一为 YYYY-MM-DD；非法日历日期（如 2026-13-45）、Invalid Date 返回 null。
  */
-function normalizeDate(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+function normalizeDate(raw: unknown): string | null {
+  if (raw instanceof Date) {
+    if (Number.isNaN(raw.getTime())) return null;
+    // Date 只代表某个日历日，用 Asia/Shanghai（与 runner/展示时区一致）取回该日期，避免本地时区漂移
+    return SHANGHAI_DATE_FMT.format(raw);
+  }
+  if (typeof raw !== "string" || !raw) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (!m) return null;
   const y = Number(m[1]);

@@ -77,11 +77,61 @@ function codes(issues: ReturnType<typeof runQualityChecks>): string[] {
   return issues.map((i) => i.code);
 }
 
+/**
+ * 模拟 pg 对 DATE 列的真实输出：postgres-date 用「本地时区午夜」构造 Date 对象
+ * （runner 的 SELECT * 路径传入的就是这种值）。返回类型谎称 string 以匹配 ReportRow
+ * 契约（lib/db.ts 的 ReportRow 类型滞后于 pg 驱动的真实返回），运行时实际是 Date。
+ */
+function pgDate(y: number, m: number, d: number): string {
+  return new Date(y, m - 1, d) as unknown as string;
+}
+
 /* ------------------------- 正常路径 ------------------------- */
 
 test("正常报告：六章节齐全、字段合法 → 零异常", () => {
   const issues = runQualityChecks(makeCtx({ reports: [makeReport()], expectedDates: [TODAY] }));
   assert.deepEqual(issues, []);
+});
+
+/* ------------------------- report_date 为 Date 对象（pg 真实输出） ------------------------- */
+
+test("report_date 兼容 pg 返回的 Date 对象：不误报、命中 expectedDates", () => {
+  // postgres-date 对 DATE '2026-11-05' 的解析结果（本地时区午夜）
+  const local = pgDate(2026, 11, 5);
+  const a = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: local })], expectedDates: [TODAY] }));
+  assert.deepEqual(a, []);
+
+  // UTC 午夜构造的 Date 也归一到同一日历日（防御性兼容）
+  const utc = new Date("2026-11-05T00:00:00Z") as unknown as string;
+  const b = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: utc })], expectedDates: [TODAY] }));
+  assert.deepEqual(b, []);
+});
+
+test("report_date 字符串与 Date 对象归一化后同日 → DUPLICATE_REPORT（不误报 INVALID_FIELDS）", () => {
+  const issues = runQualityChecks(
+    makeCtx({
+      reports: [
+        makeReport({ id: 1, report_date: "2026-11-05" }),
+        makeReport({ id: 2, report_date: pgDate(2026, 11, 5) }),
+      ],
+      expectedDates: [TODAY],
+    })
+  );
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].code, "DUPLICATE_REPORT");
+  assert.equal(issues[0].meta?.date, TODAY);
+});
+
+test("report_date 非法值：Invalid Date 与非法日历日期均报 INVALID_FIELDS", () => {
+  const bad = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: new Date("garbage") as unknown as string })] }));
+  assert.equal(bad.length, 1);
+  assert.equal(bad[0].code, "INVALID_FIELDS");
+  assert.equal(bad[0].meta?.field, "report_date");
+
+  const d = pgDate(2026, 11, 6);
+  const future = runQualityChecks(makeCtx({ reports: [makeReport({ report_date: d })] }));
+  assert.equal(future.length, 1);
+  assert.equal(future[0].code, "FUTURE_DATE");
 });
 
 /* ------------------------- 缺失 / 重复 ------------------------- */
