@@ -35,8 +35,11 @@ CREATE TABLE IF NOT EXISTS entity_mentions (
   importance_score SMALLINT NOT NULL DEFAULT 5
                    CHECK (importance_score BETWEEN 1 AND 10),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- 幂等键：同一实体 + 同一日报 + 同一头条，只允许一行
-  CONSTRAINT entity_mentions_dedup_key UNIQUE (entity_id, report_id, source_title)
+  -- 幂等键：同一实体 + 同一日报，只允许一行。
+  -- 为什么不含 source_title：日报重跑时 LLM 会重写头条标题，若把标题纳入唯一键，
+  -- 重跑就会不断累积「同一实体在同一篇日报」的重复提及（实测 8 → 17 条）。
+  -- 加上唯一键用 report_id，重跑是覆盖而非追加。
+  CONSTRAINT entity_mentions_dedup_key UNIQUE (entity_id, report_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_entity_mentions_entity_date

@@ -100,9 +100,12 @@ CREATE TABLE entity_mentions (
   context          TEXT,                         -- 实体所在原文片段（≤200 字）
   importance_score SMALLINT NOT NULL DEFAULT 5 CHECK (importance_score BETWEEN 1 AND 10),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (entity_id, report_id, source_title)    -- 幂等键：同一日报同一头条不重复
+  UNIQUE (entity_id, report_id)                  -- 幂等键：一篇日报里一个实体只有一条提及
 );
 ```
+
+> 幂等键**不含** `source_title`。日报重跑会重写标题，含标题会导致提及累积（已实测）。
+> 建表见 `migrations/006_entities.sql` + `migrations/008_entity_mentions_dedup_key.sql`。
 
 **没有 `sentiment` 字段**：现有日报数据不含情感极性，凭空造一个字段等于编造数据（阶段 A 已核实）。
 
@@ -219,6 +222,12 @@ interface ExtractedMention {
 1. **数据源**：只从 `reportMarkdown` 抽取，**不调用任何 LLM**，不引入外部数据。
 2. **实体来源**：以受控词典 `ENTITY_VARIANTS`（`lib/normalize.ts`，34 条）为基准，匹配 `canonical` 与全部 `variants`（大小写不敏感）。
 3. **来源证据**：每个 mention 必须能定位到**具体头条**。定位不到头条的匹配丢弃，不生成 mention。
+   **粒度（已按实测修正）**：一篇日报里**一个实体只产出一条 mention**，即使它出现在多个头条中。
+   来源头条优先选「实体出现在标题里」的那条（信号最强），否则取第一条包含它的。
+   `source_title` / `source_url` / `context` 保留用于展示，但**不参与唯一性判断**。
+   > 修正原因：日报重跑时 LLM 会重写标题，若把 `source_title` 纳入唯一键，
+   > 同一实体在同一篇日报的提及会不断累积（实测 8 → 17 条），违反幂等要求。
+   > `importance_score` 按实体整体计算，不按头条分别算。
 4. **`context`**：取实体所在那一行原文，去除 markdown 标记后截断 200 字。
 5. **`source_url`**：从该头条的「原文链接」字段取；取不到则 `null`，**不得编造**。
 6. **`importance_score`**（启发式，可测试）：
