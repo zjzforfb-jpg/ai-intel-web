@@ -9,6 +9,9 @@ interface DbErrorStateProps {
   hint?: string;
 }
 
+/** 数据库端口（与 lib/db.ts 等连接配置一致，默认 5433） */
+const DB_PORT = process.env.DB_PORT ?? "5433";
+
 /**
  * 数据库异常时的统一错误态（服务端组件）
  * 明确区分「读取失败」与「确实没有数据」，绝不渲染伪造内容
@@ -31,7 +34,7 @@ export function DbErrorState({ title, detail, hint }: DbErrorStateProps) {
         )}
         <p className="text-xs text-[var(--color-text-muted)] mb-6">
           {hint ??
-            "可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:5433 是否可连、只读账号凭据是否有效。"}
+            `可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${DB_PORT} 是否可连、只读账号凭据是否有效。`}
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <a

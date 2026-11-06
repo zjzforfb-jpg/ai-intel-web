@@ -1,10 +1,11 @@
 // 检查执行器 —— Owner: Agent B
 // 组装上下文 → rules → 记录 → 通知；任何单步失败内部转 error 级 CheckRun，绝不向调用方抛出
 import type { CheckRun, NotifyFn, QualityIssue } from "./types";
-import { runQualityChecks } from "./rules";
-import { saveCheckRun, listCheckRuns, markRunNotified, saveNotificationLog, isNotified } from "./store";
+import { runQualityChecks, checkStaleData } from "./rules";
+import { saveCheckRun, listCheckRuns, markRunNotified, saveNotificationLog, isNotified, countRecoveryNotifications } from "./store";
 import { notifyWebhook, makeDedupKey } from "./notify";
 import { getReadPool } from "@/lib/db";
+import { listReportFailures } from "./db";
 
 export interface RunChecksOptions {
   targetDate?: string;
@@ -25,6 +26,8 @@ function todayShanghai(): string {
 
 const DEFAULT_MIN_CONTENT = 1000;
 const DEFAULT_CHECK_TIMEOUT_MS = 60000;
+/** STALE_DATA 覆盖性窗口（天），窗口为 (targetDate-staleDays, targetDate]，含 targetDate 当天 */
+const DEFAULT_STALE_DAYS = 3;
 
 class CheckTimeoutError extends Error {}
 
@@ -65,22 +68,31 @@ async function buildRun(targetDate: string, today: string): Promise<CheckRun> {
     today,
     minContentLength: DEFAULT_MIN_CONTENT,
   });
-  // 覆盖性检查：截至 targetDate 最近 3 天是否整体断更。
-  // STALE_DATA 归属去重：若 rules.ts 已产出该码（规则迁移后），此处按 issue 码去重不重复报
-  const stale = await pool.query(
-    `SELECT count(*)::int AS n FROM daily_reports WHERE report_date > ($1::date - 3) AND report_date < $1::date`,
-    [targetDate]
+  // 覆盖性检查：STALE_DATA 唯一实现在 rules.checkStaleData（纯函数），窗口 (target-staleDays, target]
+  // 含 target 当天。此处取窗口内实际存在报告的日期喂给规则，不再维护独立的 SQL 判定。
+  const window = await pool.query(
+    `SELECT DISTINCT report_date::text AS d FROM daily_reports
+     WHERE report_date > ($1::date - $2::int) AND report_date <= $1::date`,
+    [targetDate, DEFAULT_STALE_DAYS]
   );
-  if (
-    stale.rows[0].n === 0 &&
-    rows.length === 0 &&
-    !issues.some((i) => i.code === "STALE_DATA")
-  ) {
+  const stale = checkStaleData(
+    targetDate,
+    window.rows.map((r) => r.d as string),
+    DEFAULT_STALE_DAYS
+  );
+  if (stale) issues.push(stale);
+
+  // n8n 失败兜底表：目标日期存在 report_failures 记录 → FAILURE_RECORD（与 MISSING_REPORT 可叠加，
+  // 互不抑制）。表尚未创建/未授权时 listReportFailures 返回 null，优雅跳过不影响其余规则。
+  const failures = await listReportFailures(targetDate);
+  if (failures && failures.length > 0) {
+    const stages = [...new Set(failures.map((f) => f.stage))].join("、");
+    const firstReason = failures[0].reason.replace(/\s+/g, " ").trim().slice(0, 60);
     issues.push({
-      code: "STALE_DATA",
-      severity: "error",
-      message: `截至 ${targetDate} 最近 3 天无任何新报告`,
-      meta: { date: targetDate },
+      code: "FAILURE_RECORD",
+      severity: "warn",
+      message: `${targetDate} 有 ${failures.length} 条采集失败记录（阶段：${stages}），首条原因：${firstReason}`.slice(0, 200),
+      meta: { date: targetDate, count: failures.length },
     });
   }
   const status = issues.some((i) => i.severity === "error")
@@ -108,16 +120,19 @@ export async function runChecks(options: RunChecksOptions = {}): Promise<RunChec
     run = await withTimeout(buildRun(targetDate, today), checkTimeoutMs());
   } catch (e) {
     const timedOut = e instanceof CheckTimeoutError;
-    const issue: QualityIssue = {
-      // types.ts 暂无 CHECK_TIMEOUT 专用码（需主 Agent 追加），暂复用 INVALID_FIELDS 表达「执行失败」
-      code: "INVALID_FIELDS",
-      severity: "error",
-      message: timedOut
-        ? e instanceof Error
-          ? e.message
-          : "检查执行超时"
-        : `检查执行失败：${e instanceof Error ? e.message.slice(0, 120) : "未知错误"}`,
-    };
+    // 超时用独立 CHECK_TIMEOUT 码：不与真字段异常（INVALID_FIELDS）共用 dedup_key 空间，
+    // 避免超时通知被同结论去重跳过
+    const issue: QualityIssue = timedOut
+      ? {
+          code: "CHECK_TIMEOUT",
+          severity: "error",
+          message: e instanceof Error ? e.message : "检查执行超时",
+        }
+      : {
+          code: "INVALID_FIELDS",
+          severity: "error",
+          message: `检查执行失败：${e instanceof Error ? e.message.slice(0, 120) : "未知错误"}`,
+        };
     run = {
       checkType: "daily_quality",
       targetDate,
@@ -133,8 +148,13 @@ export async function runChecks(options: RunChecksOptions = {}): Promise<RunChec
   // 写库失败不抛出，保留内存结果继续走通知。
   const saved = await saveCheckRun(run).catch(() => null);
 
-  // 恢复状态记录：本轮 ok 且同目标上一次为 warn/error（真实跃迁）→ notifications 留恢复事件（幂等）
-  if (saved && run.status === "ok" && run.targetDate) {
+  // 恢复通知：本轮 ok 且同目标上一次为 warn/error（真实跃迁）→ 真正发送恢复消息
+  // （复用异常通知的 webhook 发送路径，含重试/退避/超时），按发送结果落
+  // monitor_notifications（status=sent/failed/skipped），不再只记「已发送」而不发。
+  // dedup 键含恢复序号：recovery:<checkType>:<targetDate>#<N>（N = 该 checkType+date 的
+  // 第 N 次恢复，按 store 历史恢复记录推算），保证同日多次「异常→恢复」跃迁每次都能通知。
+  // --skip-notify 时不发送也不记录（恢复本身是一次通知事件）。
+  if (saved && run.status === "ok" && run.targetDate && !options.skipNotify) {
     try {
       const prev = await listCheckRuns({
         checkType: run.checkType,
@@ -144,9 +164,22 @@ export async function runChecks(options: RunChecksOptions = {}): Promise<RunChec
       });
       const previous = prev.items.find((r) => r.id !== saved.id);
       if (previous && previous.status !== "ok") {
-        await markRunNotified(saved.id, "sent", {
+        const seq = (await countRecoveryNotifications(run.checkType, run.targetDate)) + 1;
+        const dedupKey = `recovery:${run.checkType}:${run.targetDate}#${seq}`;
+        // 恢复消息：之前的问题摘要 + 「已恢复」+ 检查类型与日期（经 buildPayload 走 text 字段）
+        const recoveryRun: CheckRun = {
+          checkType: run.checkType,
+          targetDate: run.targetDate,
+          status: "ok",
+          summary: `已恢复：${run.checkType} ${run.targetDate} 本轮检查通过（上次 ${previous.status}：${previous.summary.slice(0, 100)}）`,
+          issues: [],
+        };
+        const fn = options.notify ?? notifyWebhook;
+        const result = await fn(recoveryRun);
+        await markRunNotified(saved.id, result.status, {
+          dedupKey,
           channel: "recovery",
-          reason: `恢复：上次检查 ${previous.status}，本轮转为 ok`,
+          reason: result.reason ?? `恢复：上次检查 ${previous.status}，本轮转为 ok（第 ${seq} 次恢复）`,
         });
       }
     } catch {

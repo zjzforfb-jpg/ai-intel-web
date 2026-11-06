@@ -67,6 +67,22 @@ npm run monitor:check
 1. 说明连续多天无新报告：大概率 n8n 采集链路整体停摆或数据源失效。
 2. 检查 n8n 工作流激活状态、调度、凭据是否过期。
 
+### CHECK_TIMEOUT（检查执行超时）
+1. 查看日志确认是整体超时（CLI 退出码 3）还是检查阶段超时（`issues` 里 `CHECK_TIMEOUT`，退出码 2）。
+2. 多为数据库无响应/容器未就绪：按「数据库连不上」排查；确认后重跑检查即可。
+3. 如常态偏慢，可调大 `MONITOR_CHECK_TIMEOUT_MS`（毫秒）；该码有独立去重空间，不会与字段异常互相吞通知。
+
+### FAILURE_RECORD（n8n 失败兜底记录）
+1. 查 `report_failures` 表该日期记录（stage/reason/raw_output），定位 n8n 哪个阶段失败。
+2. 该规则为 warn 级：若报告最终仍缺失，会与 MISSING_REPORT（error）同时出现，按 MISSING_REPORT 处置。
+3. 表未创建（未应用 `migrations/004_report_failures.sql`）时规则自动跳过，不影响其他检查。
+
+### 恢复通知（recovery）
+1. 同一检查目标「异常 → ok」真实跃迁时，会自动发送一条恢复消息（含上次问题摘要、检查类型与日期）。
+2. 恢复记录在 `monitor_notifications`（`channel='recovery'`，dedup_key 形如 `recovery:daily_quality:2026-11-05#1`），
+   同日多次「异常→恢复」每次都有独立序号、都会通知。
+3. `--skip-notify` 运行时不发送也不记录恢复事件。
+
 ---
 
 ## 3. 故障排查

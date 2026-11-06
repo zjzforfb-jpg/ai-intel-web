@@ -8,12 +8,12 @@ import {
   saveCheckRun,
   getRunById,
   listCheckRuns,
-  getLatestCheckRun,
   getMonitorOverview,
   saveNotificationLog,
   isNotified,
   listNotifications,
   markRunNotified,
+  countRecoveryNotifications,
 } from "@/lib/monitor/store";
 import { runChecks } from "@/lib/monitor/runner";
 import { makeDedupKey } from "@/lib/monitor/notify";
@@ -124,10 +124,6 @@ test("链路：saveCheckRun→getRunById→listCheckRuns→saveNotificationLog�
     assert.strictEqual(ov.statusCounts7d.error, ov.errors7d);
     assert.ok(Array.isArray(ov.recentIssues));
     assert.ok(ov.recentIssues.length <= 5);
-
-    const latest = await getLatestCheckRun();
-    assert.ok(latest);
-    assert.ok(typeof latest.checked_at === "string");
   } finally {
     await cleanupTestRuns(tag);
   }
@@ -156,6 +152,10 @@ test("幂等：dedup_key 重复写入不产生重复行，markRunNotified 恢复
     const recovery = notifs.filter((n) => n.dedup_key.startsWith("recovery:"));
     assert.strictEqual(recovery.length, 1);
     assert.strictEqual(recovery[0].channel, "recovery");
+
+    // 恢复序号推算：同 (checkType, targetDate) 的历史恢复记录（含旧格式键）应计为 1
+    assert.strictEqual(await countRecoveryNotifications(run.checkType, "2026-01-15"), 1);
+    assert.strictEqual(await countRecoveryNotifications(run.checkType, "1999-01-01"), 0);
   } finally {
     await cleanupTestRuns(tag);
   }
@@ -254,6 +254,13 @@ test("runChecks：skipNotify 不写 notifications", async () => {
   } finally {
     await cleanupFakeDates();
   }
+});
+
+test("listReportFailures：表未建/未授权时优雅返回 null（FAILURE_RECORD 规则跳过，不崩）", async () => {
+  const { listReportFailures } = await import("@/lib/monitor/db");
+  // migration 004 应用前表不存在 → 42P01 → null；应用后且日期无记录 → 空数组；两者皆合法
+  const rows = await listReportFailures("1992-08-16");
+  assert.ok(rows === null || Array.isArray(rows));
 });
 
 test("清理确认：monitor_runs / monitor_notifications 无 __test__ 与测试日期残留", async () => {

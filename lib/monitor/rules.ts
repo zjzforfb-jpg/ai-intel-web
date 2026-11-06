@@ -1,7 +1,8 @@
 // 数据质量检查规则 —— Owner: Agent A（在 v0 最小实现上补全为生产级规则集）
 // 约束：纯函数 —— 不访问数据库、不发通知、不读环境变量；输入为已取回的数据行
-// IssueCode 仅使用 types.ts 现有 12 码（本模块未新增码）；
+// IssueCode 仅使用 types.ts 现有码（CHECK_TIMEOUT/FAILURE_RECORD 归 runner 产生，本模块不产生）；
 // message ≤200 字、中文、可诊断（指出字段/日期/差多少）；meta 仅标量；报告正文不进 message/meta
+import { createHash } from "node:crypto";
 import type { QualityIssue } from "./types";
 import type { ReportRow } from "@/lib/db";
 import { parseReport } from "@/lib/markdown-parser";
@@ -14,9 +15,10 @@ export interface QualityCheckContext {
   minContentLength: number;
   /**
    * 覆盖性窗口（天），可选：
-   * >0 时启用 STALE_DATA —— (today-staleDays, today] 窗口内无任何合法报告即报 error。
-   * 缺省不启用：runner 现有调用只传单日行，覆盖性查询仍留在 runner（其能直接查库取窗口计数，
-   * 行为保持不变、不会与本判定重复上报）；批量/离线调用方传入窗口行 + staleDays 即可复用本纯函数判定。
+   * >0 时启用 STALE_DATA —— 以 ctx.today 为锚点，(today-staleDays, today]（含 today 当天）
+   * 窗口内无任何合法报告即报 error（复用 checkStaleData 唯一实现）。
+   * 缺省不启用：runner 的单日检查改为直接调用 checkStaleData（锚点=targetDate），
+   * 不经本字段；批量/离线调用方传入窗口行 + staleDays 即可复用纯函数判定。
    */
   staleDays?: number;
 }
@@ -307,6 +309,8 @@ function checkRow(r: ReportRow, ctx: QualityCheckContext, issues: QualityIssue[]
 
 /**
  * validation JSONB 标志异常：
+ * - validation 为 null/缺失/非对象/空对象 → warn（n8n 未写 validation 字段时质量校验结果完全未知，
+ *   不能静默跳过，否则该规则对这类数据 100% 失效）
  * - has_content / has_core_judgment / has_headlines 任一显式为 false → error
  *   （标志 key 缺失不触发，容忍历史/稀疏数据不齐）
  * - markdown_length 与实际正文长度偏差 >20% → warn（偏差率 = |declared-actual| / max(declared,1)）
@@ -318,7 +322,15 @@ function checkValidationFlags(
   mdLength: number | null
 ): void {
   const v = r.validation;
-  if (!v || typeof v !== "object") return;
+  if (v == null || typeof v !== "object" || Object.keys(v).length === 0) {
+    issues.push({
+      code: "VALIDATION_FLAG",
+      severity: "warn",
+      message: `${where} 的 validation 数据缺失，无法确认质量校验结果`,
+      meta: { id: r.id, date: normalizeDate(r.report_date) ?? null, flag: "validation", reason: "missing" },
+    });
+    return;
+  }
   const base = { id: r.id, date: normalizeDate(r.report_date) ?? null };
 
   for (const flag of VALIDATION_FLAGS) {
@@ -346,38 +358,67 @@ function checkValidationFlags(
   }
 }
 
-/** 不同日期标题归一化（小写、去空白/标点）后完全相同 → 疑似重复内容 */
+/**
+ * 不同日期疑似重复内容：标题归一化（小写、去空白/标点）完全相同 **且** 正文一致（sha256 相同）。
+ * 正文比对依据 types.ts 的 DUPLICATE_TITLE 契约（标题+正文高度雷同）——
+ * 若日报标题模板固定不带日期，仅比标题会每天误报；标题同但正文 hash 不同则不算重复。
+ */
 function checkDuplicateTitles(byDate: Map<string, ReportRow[]>, issues: QualityIssue[]): void {
-  const seen = new Map<string, string>();
+  const seen = new Map<string, { date: string; contentHash: string }>();
   for (const [d, rows] of sortedEntries(byDate)) {
     const norm = normalizeTitle(rows[0].title ?? "");
     if (!norm) continue; // 空标题已由 INVALID_FIELDS 报告，不参与雷同判定
+    const contentHash = contentSignature(rows[0].report_markdown);
     const first = seen.get(norm);
-    if (first !== undefined) {
+    if (first !== undefined && first.contentHash === contentHash) {
       issues.push({
         code: "DUPLICATE_TITLE",
         severity: "warn",
-        message: `日期 ${first} 与 ${d} 的标题归一化后完全相同，疑似重复内容`,
-        meta: { date1: first, date2: d },
+        message: `日期 ${first.date} 与 ${d} 的标题与正文均高度雷同（归一化标题相同、正文一致），疑似重复内容`,
+        meta: { date1: first.date, date2: d, contentHash },
       });
     } else {
-      seen.set(norm, d);
+      seen.set(norm, { date: d, contentHash });
     }
   }
 }
 
-/** 覆盖性缺失：窗口 (today-staleDays, today] 内无任何合法报告 */
+/** 正文签名：trim 后取 sha256 前 16 位（null/undefined 归一为 "null"，同为缺失正文视为一致） */
+function contentSignature(md: string | null | undefined): string {
+  if (md == null) return "null";
+  return createHash("sha256").update(md.trim()).digest("hex").slice(0, 16);
+}
+
+/**
+ * 覆盖性缺失（STALE_DATA 唯一实现，纯函数）：
+ * 窗口 (anchor-staleDays, anchor]（共 staleDays 天，含 anchor 当天）内无任何合法报告 → error 级 issue。
+ * anchor 为窗口锚点日期（日常检查=被检查的 targetDate；runQualityChecks 批量调用=ctx.today），
+ * presentDates 为窗口内实际存在报告的日期集合（调用方取数后传入）。
+ * runner 与 runQualityChecks 均调用本函数，保证语义唯一。
+ */
+export function checkStaleData(
+  anchor: string,
+  presentDates: Iterable<string>,
+  staleDays: number
+): QualityIssue | null {
+  const n = Math.floor(staleDays);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const from = addDays(anchor, -n); // 开区间下界，窗口共 n 天（含 anchor 当天）
+  for (const d of presentDates) {
+    if (d > from && d <= anchor) return null;
+  }
+  return {
+    code: "STALE_DATA",
+    severity: "error",
+    message: `截至 ${anchor}，最近 ${n} 天（${addDays(anchor, -n + 1)} 至 ${anchor}）无任何新报告`,
+    meta: { date: anchor, days: n },
+  };
+}
+
+/** runQualityChecks 内的覆盖性检查入口（staleDays > 0 时启用，复用 checkStaleData） */
 function checkStale(ctx: QualityCheckContext, byDate: Map<string, ReportRow[]>, issues: QualityIssue[]): void {
   const n = ctx.staleDays;
   if (!n || n <= 0) return;
-  const from = addDays(ctx.today, -n); // 开区间下界，窗口共 n 天（含今天）
-  for (const d of byDate.keys()) {
-    if (d > from && d <= ctx.today) return;
-  }
-  issues.push({
-    code: "STALE_DATA",
-    severity: "error",
-    message: `截至 ${ctx.today}，最近 ${n} 天（${addDays(ctx.today, -n + 1)} 至 ${ctx.today}）无任何新报告`,
-    meta: { date: ctx.today, days: n },
-  });
+  const issue = checkStaleData(ctx.today, byDate.keys(), n);
+  if (issue) issues.push(issue);
 }

@@ -98,18 +98,6 @@ export async function listCheckRuns(opts?: {
   }
 }
 
-export async function getLatestCheckRun(): Promise<CheckRunRow | null> {
-  const client = await getMonitorPool().connect();
-  try {
-    const { rows } = await client.query(
-      `SELECT ${RUN_COLUMNS} FROM monitor_runs ORDER BY checked_at DESC, id DESC LIMIT 1`
-    );
-    return (rows[0] as CheckRunRow) ?? null;
-  } finally {
-    client.release();
-  }
-}
-
 /** 按 id 取单条运行记录（详情页用） */
 export async function getRunById(id: number): Promise<CheckRunRow | null> {
   const client = await getMonitorPool().connect();
@@ -243,14 +231,39 @@ export async function isNotified(dedupKey: string): Promise<boolean> {
 }
 
 /**
+ * 同一 (checkType, targetDate) 已记录的恢复事件条数（含 failed/skipped 与旧格式键）。
+ * runner 用它推算下一次恢复的序号，生成 recovery:<checkType>:<targetDate>#<N> 去重键，
+ * 使同日多次「异常→恢复」跃迁每次都有独立键、都能通知。
+ */
+export async function countRecoveryNotifications(
+  checkType: string,
+  targetDate: string
+): Promise<number> {
+  const prefix = `recovery:${checkType}:${targetDate}`;
+  const client = await getMonitorPool().connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT count(*)::int AS n FROM monitor_notifications
+       WHERE dedup_key = $1 OR dedup_key LIKE $2`,
+      [prefix, `${prefix}#%`]
+    );
+    return rows[0].n as number;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * 恢复状态记录（设计意图）：
  * 表结构固定不新增列，「恢复」= 前次 warn/error 后本轮转为 ok 的状态跃迁，
  * 本质是一次需要留痕的通知事件，故复用 monitor_notifications 表表达——
- *   - dedup_key 以 "recovery:" 前缀与常规异常通知区分，默认键 = recovery:<checkType>:<targetDate|global>；
+ *   - dedup_key 以 "recovery:" 前缀与常规异常通知区分；runner 传入带恢复序号的键
+ *     recovery:<checkType>:<targetDate>#<N>（N 由 countRecoveryNotifications 推算），
+ *     保证同日多次恢复各自独立成键、互不被 ON CONFLICT 丢弃；
+ *     缺省键（不带序号的旧格式 recovery:<checkType>:<targetDate>）仅为兼容保留；
  *   - channel 默认 'recovery'；
  *   - status 记录恢复通知的送达结果（sent/failed/skipped）；
  *   - error 列泛化为「原因/备注」，此处记录跃迁来源（如上次 error）。
- * 幂等：同一 (checkType, targetDate) 的恢复事件共享去重键，重复调用 ON CONFLICT DO NOTHING 不报错。
  * 调用方（runner）只在真实状态跃迁（上一次非 ok → 本轮 ok）时调用，避免无跃迁误记。
  */
 export async function markRunNotified(

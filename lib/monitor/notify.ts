@@ -109,6 +109,9 @@ function buildPayload(run: CheckRun) {
   return {
     // text 优先：企业微信/飞书/Slack incoming webhook 的常见文本字段
     text: lines.join("\n"),
+    // title/body：Bark 推送的解析字段（与 text 并存，互不影响）
+    title: lines[0],
+    body: lines.slice(1).join("\n") || lines[0],
     // 结构化 payload（精简：仅结论要素，不带正文/密钥）
     status: run.status,
     targetDate: run.targetDate,

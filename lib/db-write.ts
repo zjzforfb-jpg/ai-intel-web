@@ -31,6 +31,11 @@ export function getWritePool(): Pool {
     ssl: false,
   });
 
+  // pg-pool：空闲连接出错若无人监听 'error' 事件会抛未捕获异常导致进程崩溃
+  writePool.on("error", (err) => {
+    console.error("[db-write] 空闲连接异常:", err.message);
+  });
+
   return writePool;
 }
 

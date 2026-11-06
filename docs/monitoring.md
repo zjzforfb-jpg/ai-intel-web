@@ -16,10 +16,16 @@
    1. runner.runChecks({ targetDate, skipNotify })
         ├─ 读 daily_reports（getReadPool / ai_intel_reader，只读）
         ├─ rules.runQualityChecks(...)  → QualityIssue[]（纯函数，不碰库/不发通知）
-        ├─ 覆盖性检查：最近 3 天是否整体断更 → STALE_DATA
+        ├─ 覆盖性检查：rules.checkStaleData（唯一实现），窗口 (target-3, target] 含 target 当天
+        │   是否整体断更 → STALE_DATA
+        ├─ 失败兜底检查：report_failures 表该日期有记录 → FAILURE_RECORD（表未建则跳过）
         └─ 汇总 status = ok / warn / error
    2. store.saveCheckRun(run)            → INSERT monitor_runs（ai_intel_monitor）
-   3. 若 status≠ok 且未 skipNotify：
+   3. 若 status=ok 且同目标上一次为 warn/error（真实跃迁）且未 skipNotify：
+        ├─ 恢复序号 N = store.countRecoveryNotifications(...) + 1
+        ├─ notify.notifyWebhook(恢复消息) → POST Webhook（复用异常通知的发送路径）
+        └─ store.markRunNotified(...)     → INSERT monitor_notifications（recovery:<type>:<date>#<N>）
+   4. 若 status≠ok 且未 skipNotify：
         ├─ notify.makeDedupKey(run)      → 稳定去重键
         ├─ store.isNotified(dedupKey)    → 已通知则 skip
         ├─ notify.notifyWebhook(run)     → POST Webhook（失败不影响主流程）
@@ -31,6 +37,7 @@
 
 关键设计：
 - **检查与通知解耦**：通知失败不改变主检查结论，也不抛出中断。
+- **恢复通知**：同目标「异常 → ok」真实跃迁会发送恢复消息（含上次问题摘要与日期），去重键带恢复序号（同日多次跃迁每次都通知）。
 - **幂等去重**：`monitor_notifications.dedup_key` 唯一，同一异常结论不重复通知。
 - **不存正文**：`monitor_runs.issues` 只存结构化 `QualityIssue`（code/severity/message/meta），禁止塞整篇日报正文或密钥。
 - **权限分层**：监控写入走独立账号 `ai_intel_monitor`（业务表只读 + `monitor_*` 两表 CRUD）。
@@ -41,25 +48,27 @@
 | `monitor_runs` | 每次检查结论（check_type/target_date/status/summary/issues） | ai_intel_monitor |
 | `monitor_notifications` | 通知发送日志（run_id/dedup_key/status/error），去重 | ai_intel_monitor |
 
-迁移文件：`migrations/003_monitoring.sql`（建表+授权）、`migrations/003_monitoring_down.sql`（回滚）。
+迁移文件：`migrations/003_monitoring.sql`（建表+授权）、`migrations/003_monitoring_down.sql`（回滚）、`migrations/004_report_failures.sql`（n8n 失败兜底表）。
 
 ---
 
-## 2. 质量检查规则清单（12 个 IssueCode）
+## 2. 质量检查规则清单（14 个 IssueCode）
 
 | Code | 含义 | 默认严重级 |
 |---|---|---|
 | `MISSING_REPORT` | 预期日期无报告 | error |
 | `DUPLICATE_REPORT` | 同一 `report_date` 出现多条记录（UNIQUE 约束下防御性，应恒为空） | error |
-| `DUPLICATE_TITLE` | 不同日期标题+正文高度雷同（疑似重复内容） | warn |
+| `DUPLICATE_TITLE` | 不同日期标题+正文高度雷同（疑似重复内容；标题同但正文 hash 不同不算） | warn |
 | `EMPTY_CONTENT` | 正文为空/纯空白 | error |
 | `SHORT_CONTENT` | 正文异常短（低于阈值，默认 1000 字符） | warn |
 | `PARSE_FAILED` | Markdown 解析失败/无法切分章节 | warn |
 | `MISSING_SECTION` | 缺少必需章节（核心判断/今日 AI 头条/今日趋势/商业机会） | warn |
 | `INVALID_FIELDS` | 必需字段缺失或非法（标题空、日期非法、计数为负等） | error |
-| `VALIDATION_FLAG` | n8n `validation` JSONB 标志异常（如 `has_content=false`） | warn |
+| `VALIDATION_FLAG` | n8n `validation` JSONB 标志异常（如 `has_content=false`）；validation 数据缺失同样触发 | warn |
 | `FUTURE_DATE` | `report_date` 在未来 | error |
-| `STALE_DATA` | 最近 N 天无任何新报告（覆盖性缺失） | error |
+| `STALE_DATA` | 最近 N 天无任何新报告（覆盖性缺失；唯一实现 `rules.checkStaleData`，窗口含 target 当天） | error |
+| `CHECK_TIMEOUT` | 检查执行超时（`MONITOR_CHECK_TIMEOUT_MS` 内未完成，独立去重空间） | error |
+| `FAILURE_RECORD` | n8n 失败兜底表 `report_failures` 存在该日期的失败记录（表未建则规则跳过） | warn |
 | `NOTIFY_FAILED` | 通知发送失败（不影响主检查） | warn |
 
 结论 `status`：

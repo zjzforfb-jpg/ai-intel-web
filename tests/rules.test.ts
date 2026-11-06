@@ -3,7 +3,7 @@
 // 纯内存构造 ReportRow 假数据，不连数据库
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runQualityChecks, type QualityCheckContext } from "@/lib/monitor/rules";
+import { runQualityChecks, checkStaleData, type QualityCheckContext } from "@/lib/monitor/rules";
 import type { ReportRow } from "@/lib/db";
 
 const TODAY = "2026-11-05";
@@ -205,16 +205,56 @@ test("DUPLICATE_TITLE：不同标题不误报", () => {
   assert.deepEqual(issues, []);
 });
 
+test("DUPLICATE_TITLE：标题相同但正文不同 → 不算重复（标题模板固定不误报）", () => {
+  const issues = runQualityChecks(
+    makeCtx({
+      reports: [
+        makeReport({ id: 1, report_date: "2026-11-04", title: "每日 AI 情报内参" }),
+        // 同一标题模板、不同日期的正文内容不同（换掉头条事实）→ 不应判重复
+        makeReport({
+          id: 2,
+          report_date: "2026-11-05",
+          title: "每日 AI 情报内参",
+          report_markdown: makeMarkdown().replace(
+            "新模型支持长程代理任务。",
+            "开源框架发布全新推理引擎，长文本性能大幅提升。"
+          ),
+        }),
+      ],
+    })
+  );
+  assert.deepEqual(issues, []);
+});
+
+test("DUPLICATE_TITLE：标题与正文均一致 → 报重复（含 meta.contentHash）", () => {
+  const md = makeMarkdown();
+  const issues = runQualityChecks(
+    makeCtx({
+      reports: [
+        makeReport({ id: 1, report_date: "2026-11-04", title: "每日 AI 情报内参", report_markdown: md }),
+        makeReport({ id: 2, report_date: "2026-11-05", title: "每日AI 情报内参！", report_markdown: md }),
+      ],
+    })
+  );
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].code, "DUPLICATE_TITLE");
+  assert.equal(issues[0].severity, "warn");
+  assert.match(issues[0].message, /标题与正文均高度雷同/);
+  assert.equal(typeof issues[0].meta?.contentHash, "string");
+});
+
 /* ------------------------- 空内容 / 异常短 ------------------------- */
 
 test("EMPTY_CONTENT：report_markdown 为 null 与纯空白均报 error，markdownNull 区分", () => {
-  const a = runQualityChecks(makeCtx({ reports: [makeReport({ report_markdown: null })] }));
+  // validation 显式给全 true，隔离 VALIDATION_FLAG（数据缺失）规则，专注正文判定
+  const okValidation = { has_content: true, has_core_judgment: true, has_headlines: true };
+  const a = runQualityChecks(makeCtx({ reports: [makeReport({ report_markdown: null, validation: okValidation })] }));
   assert.equal(a.length, 1);
   assert.equal(a[0].code, "EMPTY_CONTENT");
   assert.equal(a[0].severity, "error");
   assert.equal(a[0].meta?.markdownNull, true);
 
-  const b = runQualityChecks(makeCtx({ reports: [makeReport({ report_markdown: "  \n\t " })] }));
+  const b = runQualityChecks(makeCtx({ reports: [makeReport({ report_markdown: "  \n\t ", validation: okValidation })] }));
   assert.equal(b.length, 1);
   assert.equal(b[0].code, "EMPTY_CONTENT");
   assert.equal(b[0].meta?.markdownNull, false);
@@ -317,10 +357,23 @@ test("VALIDATION_FLAG：has_* 显式 false 报 error，标志缺失不误报", (
   // 部分标志缺失（只有 has_content: true）→ 不触发
   const partial = runQualityChecks(makeCtx({ reports: [makeReport({ validation: { has_content: true } })] }));
   assert.deepEqual(partial, []);
+});
 
-  // validation 整体为 null → 不触发且不崩
-  const none = runQualityChecks(makeCtx({ reports: [makeReport({ validation: null })] }));
-  assert.deepEqual(none, []);
+test("VALIDATION_FLAG：validation 为 null/空对象/非对象 → warn（数据缺失，不能静默跳过）", () => {
+  const labels = [
+    { label: "null", validation: null as unknown as Record<string, unknown> },
+    { label: "空对象", validation: {} },
+    { label: "非对象", validation: "bad" as unknown as Record<string, unknown> },
+  ];
+  for (const { validation } of labels) {
+    const issues = runQualityChecks(makeCtx({ reports: [makeReport({ validation })] }));
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].code, "VALIDATION_FLAG");
+    assert.equal(issues[0].severity, "warn");
+    assert.match(issues[0].message, /validation 数据缺失，无法确认质量校验结果/);
+    assert.equal(issues[0].meta?.flag, "validation");
+    assert.equal(issues[0].meta?.reason, "missing");
+  }
 });
 
 test("VALIDATION_FLAG：markdown_length 偏差恰好 20% 不报、超过 20% 报 warn（边界）", () => {
@@ -371,13 +424,26 @@ test("STALE_DATA：staleDays 窗口内无报告报 error，有报告或未启用
   const b = runQualityChecks(makeCtx({ reports: [fresh], staleDays: 3 }));
   assert.deepEqual(b, []);
 
-  // 未传 staleDays（runner 现有调用方式）→ 不做覆盖性判定，保持兼容
+  // 未传 staleDays（批量调用方不启用覆盖性判定）→ 不报
   const c = runQualityChecks(makeCtx({ reports: [] }));
   assert.deepEqual(c, []);
 
   // 与 MISSING_REPORT 可叠加
   const d = runQualityChecks(makeCtx({ reports: [], expectedDates: [TODAY], staleDays: 3 }));
   assert.deepEqual(codes(d).sort(), ["MISSING_REPORT", "STALE_DATA"]);
+});
+
+test("checkStaleData：窗口含 anchor 当天（runner 路径），anchor 当天有报告即不报", () => {
+  // 窗口 (11-02, 11-05] 含 11-05 当天：只有 11-05 有报告 → 不报（旧 SQL 版窗口不含当天，此为修复点）
+  assert.equal(checkStaleData("2026-11-05", ["2026-11-05"], 3), null);
+  // 只有 11-02（开区间下界当天，窗口外）→ 断更
+  const stale = checkStaleData("2026-11-05", ["2026-11-02"], 3);
+  assert.ok(stale);
+  assert.equal(stale.code, "STALE_DATA");
+  assert.match(stale.message, /2026-11-03 至 2026-11-05/);
+  // 非法 staleDays → 不报
+  assert.equal(checkStaleData("2026-11-05", [], 0), null);
+  assert.equal(checkStaleData("2026-11-05", [], -1), null);
 });
 
 /* ------------------------- 全局约束 ------------------------- */

@@ -24,7 +24,7 @@
 ## 结构速览
 - `app/`：`/` 今日情报（核心判断横幅 + 头条/趋势/机会三板块）、`/report/[date]` 完整日报（目录锚点/复制/打印/进度条）、`/history` 历史档案馆（搜索/筛选/分页）、`/trends`、`/about`
 - `components/`：UI 组件；`components/history/` 搜索控件/分页/高亮摘要
-- `lib/db.ts`：pg Pool 与全部查询（`getLatestReport`/`getReportByDate`/`getAdjacentReports`/`listReports`/`searchArchive`/`getArchiveFacets`/`getStats`）
+- `lib/db.ts`：pg Pool 与全部查询（`getLatestReport`/`getReportByDate`/`getAdjacentReports`/`searchArchive`/`getArchiveFacets`/`getStats`）
 - `lib/markdown-parser.ts`：六章节切分（正则字段格式 `- **字段名**：值`，冒号在加粗外）、`buildToc`/`slugify`
 - `lib/search.ts`：关键词解析、匹配摘要切片；`lib/format.ts`：时区展示（DISPLAY_TZ=Asia/Shanghai）
 

@@ -31,6 +31,11 @@ function getPool(): Pool {
     ssl: false,
   });
 
+  // pg-pool：空闲连接出错若无人监听 'error' 事件会抛未捕获异常导致进程崩溃
+  pool.on("error", (err) => {
+    console.error("[db] 空闲连接异常:", err.message);
+  });
+
   return pool;
 }
 
@@ -136,59 +141,6 @@ export async function getAdjacentReports(date: string): Promise<AdjacentReports>
       prev: prevRes.rows[0] ?? null,
       next: nextRes.rows[0] ?? null,
     };
-  } finally {
-    client.release();
-  }
-}
-
-export async function listReports(
-  page = 1,
-  size = 20
-): Promise<{ items: ReportListItem[]; total: number }> {
-  const client = await getPool().connect();
-  try {
-    const offset = (page - 1) * size;
-    const countRes = await client.query("SELECT count(*)::int AS total FROM daily_reports");
-    const total = countRes.rows[0].total;
-    const res = await client.query<ReportListItem>(
-      `SELECT id, report_date::text, title, generated_at::text,
-              total_articles, headline_count, status
-       FROM daily_reports
-       ORDER BY report_date DESC
-       LIMIT $1 OFFSET $2`,
-      [size, offset]
-    );
-    return { items: res.rows, total };
-  } finally {
-    client.release();
-  }
-}
-
-export async function searchReports(
-  q: string,
-  page = 1,
-  size = 20
-): Promise<{ items: ReportListItem[]; total: number }> {
-  const client = await getPool().connect();
-  try {
-    const pattern = `%${q}%`;
-    const offset = (page - 1) * size;
-    const countRes = await client.query(
-      `SELECT count(*)::int AS total FROM daily_reports
-       WHERE title ILIKE $1 OR report_markdown ILIKE $1`,
-      [pattern]
-    );
-    const total = countRes.rows[0].total;
-    const res = await client.query<ReportListItem>(
-      `SELECT id, report_date::text, title, generated_at::text,
-              total_articles, headline_count, status
-       FROM daily_reports
-       WHERE title ILIKE $1 OR report_markdown ILIKE $1
-       ORDER BY report_date DESC
-       LIMIT $2 OFFSET $3`,
-      [pattern, size, offset]
-    );
-    return { items: res.rows, total };
   } finally {
     client.release();
   }

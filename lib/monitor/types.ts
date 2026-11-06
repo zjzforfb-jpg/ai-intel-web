@@ -20,6 +20,8 @@ export type Severity = "warn" | "error";
  * VALIDATION_FLAG     n8n validation JSONB 标志异常（has_content=false 等）
  * FUTURE_DATE         report_date 在未来
  * STALE_DATA          最近 N 天无任何新报告（覆盖性缺失）
+ * CHECK_TIMEOUT       检查执行超时（MONITOR_CHECK_TIMEOUT_MS 内未完成）
+ * FAILURE_RECORD      n8n 失败兜底表 report_failures 中存在该日期的失败记录
  * NOTIFY_FAILED       通知发送失败（不影响主检查）
  */
 export type IssueCode =
@@ -34,6 +36,8 @@ export type IssueCode =
   | "VALIDATION_FLAG"
   | "FUTURE_DATE"
   | "STALE_DATA"
+  | "CHECK_TIMEOUT"
+  | "FAILURE_RECORD"
   | "NOTIFY_FAILED";
 
 export interface QualityIssue {
