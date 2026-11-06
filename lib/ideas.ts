@@ -1,4 +1,9 @@
 // 选题提取 —— 服务端数据访问（topic_ideas 表 CRUD）
+//
+// 阶段 2 改造（契约 docs/phase2-stageB-interface.md 第 3.6 节）：
+// - 新增跨日报语义查重（findDuplicateIdeas / createIdeaDeduplicated）；
+// - 同主题但切入角度（angle）显著不同的选题允许共存，但必须标注差异，不静默丢弃。
+//
 // 红线：
 // - 读走 getReadPool()（ai_intel_reader，仅 SELECT），写走 getWritePool()（ai_intel_writer）；
 // - 全部 SQL 参数化，动态列名仅来自固定白名单；严禁 DDL。
@@ -6,6 +11,7 @@ import { getReadPool } from "./db";
 import { getWritePool } from "./db-write";
 import type { IdeaRow, IdeaStatus, IdeaWriteValues } from "./ideas-shared";
 import { isIdeaStatus } from "./ideas-shared";
+import { isDuplicate, type DedupResult } from "./dedup";
 
 export type { IdeaRow, IdeaStatus };
 
@@ -160,6 +166,107 @@ export async function deleteIdea(id: number): Promise<boolean> {
   } finally {
     client.release();
   }
+}
+
+/* ==================== 跨日报语义查重（阶段 2） ==================== */
+
+/** 角度差异阈值：两段角度文本的归一化后重合度低于此值，视为「切入角度显著不同」 */
+const ANGLE_DIVERGENCE_THRESHOLD = 0.6;
+
+/**
+ * 判断两条选题的切入角度是否「显著不同」。
+ * 采用归一化后的字符级 Jaccard：重合度低于阈值即认为角度不同。
+ */
+export function isAngleDifferent(angleA: string | null, angleB: string | null): boolean {
+  const a = (angleA ?? "").replace(/\s+/g, "");
+  const b = (angleB ?? "").replace(/\s+/g, "");
+  if (!a || !b) return false;
+  const setA = new Set(a.split(""));
+  const setB = new Set(b.split(""));
+  let inter = 0;
+  for (const ch of setA) if (setB.has(ch)) inter += 1;
+  const union = setA.size + setB.size - inter;
+  if (union === 0) return false;
+  return inter / union < ANGLE_DIVERGENCE_THRESHOLD;
+}
+
+/** 查重用到的历史选题（只取判定所需字段） */
+interface IdeaCandidate {
+  id: number;
+  title: string;
+  angle: string | null;
+}
+
+/**
+ * 跨日报语义查重：返回与给定选题重复的历史选题。
+ * 全表比对（不限日期），已放弃（status='已放弃'）的记录不参与判定。
+ *
+ * @param title 待查重标题
+ * @param angle 待查重切入角度（用于判断是否只是「同主题不同角度」）
+ * @param excludeId 排除自身 id（更新场景）
+ */
+export async function findDuplicateIdeas(
+  title: string,
+  angle?: string | null,
+  excludeId?: number
+): Promise<IdeaRow[]> {
+  const client = await getReadPool().connect();
+  try {
+    const res = await client.query<IdeaRow>(
+      `SELECT ${IDEA_COLUMNS}
+       FROM topic_ideas
+       WHERE ($1::int IS NULL OR id <> $1::int)
+         AND status <> '已放弃'
+       ORDER BY id ASC`,
+      [excludeId ?? null]
+    );
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 语义去重后创建选题。
+ * - 无重复 → 正常创建，返回 created；
+ * - 有重复且角度显著不同 → 仍然创建，但 reason 标注「同主题不同角度，已并存」；
+ * - 有重复且角度相同/缺失 → 不创建，返回重复列表与原因。
+ */
+export async function createIdeaDeduplicated(
+  value: IdeaWriteValues
+): Promise<{ created: IdeaRow | null; duplicates: IdeaRow[]; reason?: string }> {
+  const rows = await findDuplicateIdeas(value.title, value.angle);
+  const candidates: IdeaCandidate[] = rows.map((r) => ({ id: r.id, title: r.title, angle: r.angle }));
+
+  const result: DedupResult = isDuplicate(
+    { title: value.title, description: value.angle },
+    candidates
+  );
+
+  if (!result.duplicate) {
+    const created = await createIdea(value);
+    return { created, duplicates: [] };
+  }
+
+  // 找到被命中的历史记录
+  const matchedRow = rows.find((r) => r.title === result.match?.title) ?? rows[0];
+  const duplicates = matchedRow ? [matchedRow] : [];
+
+  // 同主题但角度显著不同 → 允许并存，但必须标注差异（不静默丢弃）
+  if (matchedRow && isAngleDifferent(matchedRow.angle, value.angle)) {
+    const created = await createIdea(value);
+    return {
+      created,
+      duplicates,
+      reason: `与已有选题「${matchedRow.title}」同主题但切入角度不同，已并存保留`,
+    };
+  }
+
+  return {
+    created: null,
+    duplicates,
+    reason: `语义重复：${result.match?.reason ?? result.explanation}`,
+  };
 }
 
 /* ==================== 内部工具 ==================== */

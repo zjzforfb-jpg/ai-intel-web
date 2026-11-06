@@ -76,7 +76,7 @@ test("无 rationale 时 notes 仅记录来源日报；category 空则落 NULL", 
   }
 });
 
-test("跨批去重：同 title 二次写入被跳过", async () => {
+test("跨批去重：同 title 二次写入被跳过（语义去重）", async () => {
   const c = candidate();
   try {
     const first = await draftOpportunities(TEST_DATE, [c]);
@@ -87,7 +87,8 @@ test("跨批去重：同 title 二次写入被跳过", async () => {
     assert.strictEqual(second.inserted, 0);
     assert.strictEqual(second.skipped.length, 1);
     assert.strictEqual(second.skipped[0].title, c.title);
-    assert.match(second.skipped[0].reason, /已存在/);
+    assert.match(second.skipped[0].reason, /语义重复|完全一致/);
+    assert.ok((second.skipped[0].matchedId ?? -1) > 0, "应记录命中的历史 id");
   } finally {
     await cleanup();
   }
@@ -113,6 +114,90 @@ test("trim 去重：首尾空白不同的同标题视为重复", async () => {
     assert.strictEqual(result.inserted, 1);
     assert.strictEqual(result.skipped.length, 1);
     assert.match(result.skipped[0].reason, /同批/);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("语义去重：措辞不同的同一机会被跳过，且写明判定依据", async () => {
+  // 用一组不与库中真实商机冲突的措辞，验证「同主题不同措辞」能被识别
+  const a = candidate({
+    title: "__test__ 为内部研发团队搭建轻量工单自动化工具",
+    description: "编码Agent让内部工单与审批流程的自动化交付成本明显下降，业务团队可自建内部工具。",
+  });
+  const b = candidate({
+    title: "__test__ 给研发团队做轻量工单自动化工具",
+    description: "编码Agent降低内部工单自动化工具的交付成本，业务部门可以自己做内部工具。",
+  });
+  try {
+    const first = await draftOpportunities(TEST_DATE, [a]);
+    assert.strictEqual(first.inserted, 1);
+
+    const second = await draftOpportunities(TEST_DATE, [b]);
+    assert.strictEqual(second.inserted, 0, "语义重复的候选不应重复落库");
+    assert.strictEqual(second.skipped.length, 1);
+    assert.match(second.skipped[0].reason, /语义重复/);
+    assert.ok((second.skipped[0].score ?? 0) > 0, "应记录判定得分");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("语义去重：新候选描述更完整时合并更新历史记录，不丢数据", async () => {
+  const short = candidate({
+    title: "__test__ Agent网络出口审计网关服务",
+    description: "为Agent提供网络出口审计。",
+  });
+  const rich = candidate({
+    title: "__test__ Agent网络出口审计网关服务",
+    description: "为Agent提供网络出口审计、域名白名单、PII脱敏与审计日志，面向企业安全采购刚需。",
+  });
+  try {
+    await draftOpportunities(TEST_DATE, [short]);
+    const rowBefore = await getRowByTitle(short.title);
+    assert.ok(rowBefore);
+    assert.strictEqual(rowBefore.description, short.description);
+
+    const second = await draftOpportunities("1992-08-17", [rich]);
+    assert.strictEqual(second.inserted, 0, "重复项不新增行");
+    assert.strictEqual(second.merged, 1, "应合并到历史记录");
+
+    const rowAfter = await getRowByTitle(short.title);
+    assert.ok(rowAfter);
+    assert.match(rowAfter.description ?? "", /域名白名单/, "更完整的描述应被合并进历史记录");
+    assert.strictEqual(rowAfter.status, "待研究", "status 不得被覆盖");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("语义去重：不覆盖人工编辑过的 notes / action_plan / status", async () => {
+  const c = candidate({ title: "__test__ 人工编辑保护用例" });
+  try {
+    await draftOpportunities(TEST_DATE, [c]);
+    const before = await getRowByTitle(c.title);
+    assert.ok(before);
+
+    // 模拟人工编辑：改 status / notes / action_plan
+    await getWritePool().query(
+      `UPDATE opportunities SET status = '验证中', notes = '人工备注：请先做单行业试点', action_plan = '第一步：访谈3家客户'
+       WHERE id = $1::int`,
+      [before.id]
+    );
+
+    // 再来一条语义重复、且描述更长的候选
+    const dup = candidate({
+      title: "__test__ 人工编辑保护用例",
+      description: "这是一条明显更完整的描述，包含更多实现细节与验证路径，应当被合并但不得覆盖人工字段。",
+    });
+    const second = await draftOpportunities("1992-08-17", [dup]);
+    assert.strictEqual(second.inserted, 0);
+
+    const after = await getRowByTitle(c.title);
+    assert.ok(after);
+    assert.strictEqual(after.status, "验证中", "status 不得被覆盖");
+    assert.strictEqual(after.notes, "人工备注：请先做单行业试点", "人工 notes 不得被覆盖");
+    assert.strictEqual(after.action_plan, "第一步：访谈3家客户", "action_plan 不得被覆盖");
   } finally {
     await cleanup();
   }
@@ -152,7 +237,7 @@ test("reportDate 非法时整批拒绝（抛错且不落库）", async () => {
 
 test("空候选列表：返回零写入零跳过，不报错", async () => {
   const result = await draftOpportunities(TEST_DATE, []);
-  assert.deepStrictEqual(result, { inserted: 0, skipped: [] });
+  assert.deepStrictEqual(result, { inserted: 0, skipped: [], merged: 0 });
 });
 
 test("formatDraftNotes：两种格式拼接", () => {

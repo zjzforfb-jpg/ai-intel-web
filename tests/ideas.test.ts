@@ -18,6 +18,9 @@ import {
   updateIdea,
   deleteIdea,
   IdeaConflictError,
+  findDuplicateIdeas,
+  createIdeaDeduplicated,
+  isAngleDifferent,
 } from "@/lib/ideas";
 import { isIdeaStatus, validateIdea } from "@/lib/ideas-shared";
 
@@ -314,5 +317,139 @@ describe("validateIdea 校验", () => {
     const r = validateIdea({ hack: "x", id: 1 }, "update");
     // 只有未知字段 = 没有可更新字段，仍拒绝（防误以为更新成功）
     assert.equal(r.ok, false);
+  });
+});
+
+/* ================================================================== */
+/* 阶段 2：跨日报语义查重                                              */
+/* ================================================================== */
+
+describe("阶段 2 · 跨日报语义查重", () => {
+  test("findDuplicateIdeas：跨日报也能查到语义重复的选题", async () => {
+    const a = await createIdea({
+      report_date: TEST_DATE,
+      title: "__test__ Claude Code竟把邮箱发给网站？企业该慌了",
+      angle: "从开发者工具隐私翻车切入，拆解企业采用编码Agent前的数据出口审计清单。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 9,
+      status: "待制作",
+    });
+    assert.ok(a.id > 0);
+
+    // 换一个日期写入，但内容语义相同
+    const dup = await findDuplicateIdeas(
+      "Claude Code会把邮箱发给网站？这份报告仍待确认",
+      "从隐私审计视角拆解这份用户报告，给出检查Agent出站请求的实操建议。"
+    );
+    assert.ok(dup.length >= 1, "应跨日报查到重复选题");
+    assert.ok(dup.some((d) => d.title.includes("邮箱发给网站")));
+  });
+
+  test("findDuplicateIdeas：excludeId 可排除自身", async () => {
+    const a = await createIdea({
+      report_date: TEST_DATE,
+      title: "__test__ 排除自身用例",
+      angle: "唯一角度",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 5,
+      status: "待制作",
+    });
+    const withSelf = await findDuplicateIdeas("排除自身用例", "唯一角度");
+    const withoutSelf = await findDuplicateIdeas("排除自身用例", "唯一角度", a.id);
+    assert.ok(withSelf.some((d) => d.id === a.id));
+    assert.ok(!withoutSelf.some((d) => d.id === a.id));
+  });
+
+  test("findDuplicateIdeas：已放弃的选题不参与判定", async () => {
+    const a = await createIdea({
+      report_date: TEST_DATE,
+      title: "__test__ 已放弃的重复项",
+      angle: "隐私审计角度",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 5,
+      status: "已放弃",
+    });
+    const dup = await findDuplicateIdeas("已放弃的重复项", "隐私审计角度");
+    assert.ok(!dup.some((d) => d.id === a.id), "已放弃的记录不应参与查重");
+  });
+
+  test("createIdeaDeduplicated：无重复时正常创建", async () => {
+    const r = await createIdeaDeduplicated({
+      report_date: TEST_DATE,
+      title: "__test__ 完全不相关的新选题",
+      angle: "讲述量子计算在药物筛选中的最新进展与落地挑战。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 6,
+      status: "待制作",
+    });
+    assert.ok(r.created, "无重复时应正常创建");
+    assert.equal(r.duplicates.length, 0);
+  });
+
+  test("createIdeaDeduplicated：语义重复且角度相同 → 不创建，返回原因", async () => {
+    await createIdea({
+      report_date: TEST_DATE,
+      title: "__test__ 语义重复角度相同的选题",
+      angle: "从隐私审计视角拆解邮箱泄露风险，给出检查Agent出站请求的建议。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 8,
+      status: "待制作",
+    });
+
+    const r = await createIdeaDeduplicated({
+      report_date: "2000-01-02",
+      title: "__test__ 语义重复角度相同的选题",
+      angle: "从隐私审计视角拆解邮箱泄露风险，给出检查Agent出站请求的建议。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 8,
+      status: "待制作",
+    });
+    assert.equal(r.created, null, "重复项不应创建");
+    assert.ok(r.duplicates.length >= 1);
+    assert.match(r.reason ?? "", /语义重复|完全一致/);
+  });
+
+  test("createIdeaDeduplicated：同主题但角度不同 → 允许并存并标注差异", async () => {
+    await createIdea({
+      report_date: TEST_DATE,
+      title: "__test__ Claude Code竟把邮箱发给网站？企业该慌了",
+      angle: "从企业安全审查与隐私风险的角度切入，提醒AI编程Agent的网络行为必须审计。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 8,
+      status: "待制作",
+    });
+
+    // 标题语义相同（同一事件），但切入角度显著不同 → 允许并存
+    const r = await createIdeaDeduplicated({
+      report_date: "2000-01-02",
+      title: "__test__ Claude Code会把邮箱发给网站？这份报告仍待确认",
+      angle: "换个角度：从开源许可证与合规审查切入，讨论企业引入代码助手前必须核对的条款清单。",
+      source_material: null,
+      reference_visuals: null,
+      value_score: 8,
+      status: "待制作",
+    });
+    assert.ok(r.created, "角度显著不同时应允许并存");
+    assert.match(r.reason ?? "", /同主题但切入角度不同/);
+  });
+
+  test("isAngleDifferent：角度文本重合度低才算显著不同", () => {
+    assert.equal(isAngleDifferent("隐私风险审计视角", "隐私风险审计视角"), false);
+    assert.equal(isAngleDifferent(null, "任意角度"), false);
+    assert.equal(isAngleDifferent("", ""), false);
+    assert.equal(
+      isAngleDifferent(
+        "从企业安全审查与隐私风险的角度切入，提醒网络行为必须审计。",
+        "换个角度：从开源许可证与合规审查切入，讨论引入前必须核对的条款清单。"
+      ),
+      true
+    );
   });
 });
