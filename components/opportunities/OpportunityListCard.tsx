@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Tag } from "lucide-react";
+import { ArrowRight, CalendarDays, Sparkles, Tag } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import type { OpportunityRow } from "@/lib/opportunities-shared";
+import { isDraftNotes } from "@/lib/opportunity-draft";
 
 interface OpportunityListCardProps {
   item: OpportunityRow;
@@ -9,8 +10,9 @@ interface OpportunityListCardProps {
 
 /** 列表卡片：标题 + 状态徽章 + 分类 + 来源日期 + 备注摘要 */
 export function OpportunityListCard({ item }: OpportunityListCardProps) {
-  // 摘要优先取备注，备注为空时退化到机会描述
+  // 摘要优先取备注（自动草稿的备注即判断依据），备注为空时退化到机会描述
   const excerpt = item.notes ?? item.description;
+  const isDraft = isDraftNotes(item.notes);
 
   return (
     <Link
@@ -37,12 +39,23 @@ export function OpportunityListCard({ item }: OpportunityListCardProps) {
             来源 {item.source_report_date}
           </span>
         )}
+        {isDraft && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/15 text-violet-400">
+            <Sparkles size={11} />
+            AI 草稿
+          </span>
+        )}
       </div>
 
       {excerpt && (
-        <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-muted)] line-clamp-2 [overflow-wrap:anywhere]">
-          {excerpt}
-        </p>
+        <div className="mt-2">
+          {isDraft && (
+            <p className="text-[12px] text-[var(--color-text-muted)] mb-0.5">判断依据</p>
+          )}
+          <p className="text-[13px] leading-relaxed text-[var(--color-text-muted)] line-clamp-2 [overflow-wrap:anywhere]">
+            {excerpt}
+          </p>
+        </div>
       )}
 
       <div className="flex items-center gap-1.5 mt-3 text-[13px] text-[var(--color-text-muted)] group-hover:text-[var(--color-accent-light)] transition-colors">

@@ -14,6 +14,7 @@ import {
   type OpportunityRow,
 } from "@/lib/opportunities";
 import { formatDateTime } from "@/lib/format";
+import { isDraftNotes } from "@/lib/opportunity-draft";
 import { DbErrorState } from "@/components/DbErrorState";
 import { StatusBadge } from "@/components/opportunities/StatusBadge";
 import { StatusControl } from "@/components/opportunities/StatusControl";
@@ -156,7 +157,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             <TextBlock text={item.description} placeholder="暂无描述，可点「编辑信息」补充。" />
           </SectionCard>
 
-          <SectionCard title="备注">
+          {/* 自动草稿的 notes 承载判断依据，标题随之区分 */}
+          <SectionCard title={isDraftNotes(item.notes) ? "判断依据（AI 草稿）" : "备注"}>
             <TextBlock text={item.notes} placeholder="暂无备注，可点「编辑信息」记录研究进展与想法。" />
           </SectionCard>
 
