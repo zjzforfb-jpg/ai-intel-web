@@ -202,10 +202,30 @@
 
 ## 6. 回滚方式
 
+⚠️ **备份是 `--data-only` 的**，不能直接导入到已有表的库（会撞主键）。
+
+正确回滚流程：
+
 ```bash
-# 从备份恢复
+BACKUP_DIR="PROJECT_ROOT/backups/phase2"
+BACKUP="$BACKUP_DIR/opportunities-ideas-data-20261106-210411.sql"
+
+# 1) 先清空目标表（只清这两张，不动其他表）
 docker --context orbstack exec -i n8n-radar-postgres psql -U n8n_radar -d ai_intelligence \
-  < "backups/phase2/opportunities-ideas-data-20261106-210411.sql"
+  -c "DELETE FROM opportunities; DELETE FROM topic_ideas;"
+
+# 2) 再导入备份
+docker --context orbstack exec -i n8n-radar-postgres psql -U n8n_radar -d ai_intelligence -f - < "$BACKUP"
+
+# 3) 校验
+docker --context orbstack exec -i n8n-radar-postgres psql -U n8n_radar -d ai_intelligence \
+  -c "SELECT (SELECT count(*) FROM opportunities) AS opps, (SELECT count(*) FROM topic_ideas) AS ideas;"
 ```
 
-⚠️ 恢复前需先 `DELETE FROM opportunities; DELETE FROM topic_ideas;`（备份是 data-only 的 INSERT，会撞主键）。
+**备份可恢复性已实测验证**（2026-11-06 21:2x）：
+在临时库 `ai_intel_backuptest` 中先导入 schema（`pg_dump --schema-only`，17,406 字节，
+已存 `/tmp/n8n-audit/schema-only.sql`），再导入数据备份，
+结果 `opportunities=8`、`topic_ideas=15`，与源库完全一致。
+验证后临时库已删除。
+
+> 建议把 schema-only 备份也存到 `backups/phase2/` 目录，便于将来完整重建。
