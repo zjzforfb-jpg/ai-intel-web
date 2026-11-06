@@ -145,9 +145,13 @@ console.log(
 /* ---------- 4. n8n 状态 ---------- */
 section("4. n8n 工作流与定时任务状态");
 
-const n8nSqlite = "/tmp/n8n-audit/database.sqlite";
+// n8n 的 SQLite 快照目录（可用第一个参数覆盖）
+// 默认读 /tmp/n8n-edit（阶段 D 施工时用的工作副本），其次是审计期快照。
+const n8nDir = process.argv[2] ?? (existsSync("/tmp/n8n-edit/database.sqlite") ? "/tmp/n8n-edit" : "/tmp/n8n-audit");
+const n8nSqlite = `${n8nDir}/database.sqlite`;
 if (existsSync(n8nSqlite)) {
-  const q = (sql: string) => sh(`cd /tmp/n8n-audit && sqlite3 database.sqlite "${sql}"`);
+  console.log(`  快照来源: ${n8nSqlite}`);
+  const q = (sql: string) => sh(`cd ${n8nDir} && sqlite3 database.sqlite "${sql}"`);
   console.log("  workflow_entity:");
   console.log(
     "   ",
