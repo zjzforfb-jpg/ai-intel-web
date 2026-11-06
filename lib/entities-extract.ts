@@ -340,7 +340,25 @@ export function extractEntityMentions(input: ExtractInput): ExtractedMention[] {
   // 全文出现次数用于重要度加分
   const fullHits = matchEntities(markdown);
 
-  const out: ExtractedMention[] = [];
+  // 聚合粒度：一篇日报里一个实体只产出一条提及。
+  //
+  // 为什么不是「一个头条一条」：实体提及的唯一键是 (entity_id, report_id)，
+  // 同一实体在同一篇日报里出现多次也只该算一次提及；而且日报重跑时 LLM 会
+  // 重写标题，若按头条拆条，重跑就会不断累积重复行。
+  //
+  // 选哪条头条作为来源：优先选「实体出现在标题里」的那条（信号最强），
+  // 否则取第一条能定位到原文行的。
+  interface Picked {
+    canonical: string;
+    aliases: Set<string>;
+    sourceTitle: string | null;
+    sourceUrl: string | null;
+    context: string;
+    titleHit: boolean;
+    occurrenceCount: number;
+  }
+  const picked = new Map<string, Picked>();
+
   for (const headline of headlines) {
     const title = headline.title?.trim() ?? "";
     const titleHits = matchEntities(title);
@@ -351,24 +369,49 @@ export function extractEntityMentions(input: ExtractInput): ExtractedMention[] {
       // 定位不到原文行 → 证据不足，丢弃
       if (!context) continue;
 
-      const importanceScore = computeImportanceScore({
-        inHeadlineTitle: titleHits.has(canonical),
-        inCoreJudgment: coreHits.has(canonical),
-        occurrences: fullHits.get(canonical)?.occurrenceCount ?? hit.occurrenceCount,
-      });
+      const isTitleHit = titleHits.has(canonical);
+      const existing = picked.get(canonical);
 
-      out.push({
+      // aliases 是实体级属性：把全报告出现过的别名都并进去
+      if (existing) {
+        for (const a of hit.aliases) existing.aliases.add(a);
+      }
+
+      // 已有记录且已命中标题 → 不再替换来源
+      if (existing && existing.titleHit) continue;
+      // 新候选没命中标题、但已有记录也没命中 → 保留先到的（顺序稳定，便于测试）
+      if (existing && !isTitleHit) continue;
+
+      picked.set(canonical, {
         canonical,
-        normalizedName: normalizeEntityName(canonical),
-        entityType: entityTypeOf(canonical),
-        aliases: hit.aliases,
-        reportDate: input.reportDate,
+        aliases: existing ? existing.aliases : new Set(hit.aliases),
         sourceTitle: title || null,
         sourceUrl: headline.link?.trim() || null,
         context,
-        importanceScore,
+        titleHit: isTitleHit,
+        occurrenceCount: fullHits.get(canonical)?.occurrenceCount ?? hit.occurrenceCount,
       });
     }
+  }
+
+  const out: ExtractedMention[] = [];
+  for (const p of picked.values()) {
+    out.push({
+      canonical: p.canonical,
+      normalizedName: normalizeEntityName(p.canonical),
+      entityType: entityTypeOf(p.canonical),
+      aliases: Array.from(p.aliases),
+      reportDate: input.reportDate,
+      sourceTitle: p.sourceTitle,
+      sourceUrl: p.sourceUrl,
+      context: p.context,
+      importanceScore: computeImportanceScore({
+        // 「出现在任意一条头条标题里」即算命中标题，与 n8n 侧判定一致
+        inHeadlineTitle: p.titleHit,
+        inCoreJudgment: coreHits.has(p.canonical),
+        occurrences: p.occurrenceCount,
+      }),
+    });
   }
 
   return out;

@@ -203,7 +203,10 @@ describe("实体别名归一", () => {
     const groups = groupMentionsByEntity(mentions);
     assert.equal(groups.length, 1);
     assert.equal(groups[0].normalizedName, "huggingface");
-    assert.equal(groups[0].mentions.length, 2, "两篇头条 → 两条 mention");
+    // 一篇日报里一个实体只产出一条 mention（唯一键是 entity_id + report_id），
+    // 出现在两个头条里也一样；来源头条取「实体出现在标题里」的那条。
+    assert.equal(groups[0].mentions.length, 1, "同一实体在同一篇日报只算一条 mention");
+    // 别名是实体级属性：全报告出现过的写法都要并进来
     assert.ok(groups[0].aliases.includes("hugging face"));
     assert.ok(groups[0].aliases.includes("huggingface"));
   });

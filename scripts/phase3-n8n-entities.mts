@@ -304,6 +304,28 @@ const connections = JSON.parse(wf.connections) as Record<string, any>;
 const anchor = nodes.find((n) => n.name === ANCHOR_NODE);
 if (!anchor) throw new Error(`找不到锚点节点「${ANCHOR_NODE}」`);
 
+/* ---- 顺带修一个时区 bug ----
+ * 「AI情报数据打包」里 report_date 用的是 new Date().toISOString().slice(0,10)，
+ * 那是 UTC 日期。容器 TZ 是 Asia/Shanghai（UTC+8），所以北京时间 00:00–07:59
+ * 之间的任何一次运行都会把日期算成前一天 —— 实测 01:01 跑的那次把内容写进了
+ * 前一天的日报（UPSERT 覆盖了原有内容）。
+ * 定时任务 08:30 不受影响（08:30 CST = 00:30 UTC，同一天），但手动执行会踩坑。
+ * 这里改成按固定 +8 偏移算中国日期（中国无夏令时，偏移恒定）。
+ */
+const DATE_NODE = "AI情报数据打包";
+const dateNode = nodes.find((n) => n.name === DATE_NODE);
+let dateFixed = false;
+if (dateNode?.parameters?.jsCode) {
+  const before = dateNode.parameters.jsCode as string;
+  if (before.includes("new Date().toISOString().slice(0, 10)")) {
+    dateNode.parameters.jsCode = before.replace(
+      "new Date().toISOString().slice(0, 10)",
+      "new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)"
+    );
+    dateFixed = true;
+  }
+}
+
 // 幂等：已挂过就直接更新内容，不重复加节点
 const alreadyHas = nodes.some((n) => n.name === EXTRACT_NODE);
 
@@ -372,6 +394,7 @@ connections[EXTRACT_NODE] = { main: [[{ node: WRITE_NODE, type: "main", index: 0
 console.log(`\n=== 改造摘要 ===`);
 console.log(`锚点节点: ${ANCHOR_NODE}`);
 console.log(`新增/更新: ${EXTRACT_NODE}（Code）, ${WRITE_NODE}（Postgres）`);
+console.log(`日报日期改按中国时区计算: ${dateFixed ? "已修正 UTC 偏移 bug" : "已是正确写法，跳过"}`);
 console.log(`节点总数: ${nodes.length}`);
 console.log(`取日报正文 输出: ${connections[ANCHOR_NODE].main[0].map((c: any) => c.node).join(", ")}`);
 
