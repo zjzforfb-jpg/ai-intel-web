@@ -10,6 +10,7 @@ import {
   type IdeaRow,
   type IdeaStatus,
 } from "@/lib/ideas-shared";
+import { CreateProjectButton } from "@/components/content/CreateProjectButton";
 import { IdeaForm } from "./IdeaForm";
 
 /** 单条选题卡片：标题钩子 + 评分 + 状态切换 + 素材/画面 + 行内编辑/删除 */
@@ -157,6 +158,12 @@ export function IdeaCard({ idea }: { idea: IdeaRow }) {
         {switching && <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />}
 
         <span className="flex-1" />
+
+        {/* 阶段3：把选题接到内容生产（主控挂载，按钮逻辑属 Agent B） */}
+        <CreateProjectButton
+          topicIdeaId={idea.id}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[var(--color-border-glow)] bg-[var(--color-accent-glow)] text-[13px] text-[var(--color-accent-light)] hover:brightness-110 transition disabled:opacity-60"
+        />
 
         <button
           type="button"
