@@ -46,22 +46,22 @@ function sqlLit(v: string): string {
   return `'${v.replace(/'/g, "''")}'`;
 }
 
-/* ---------------------- 从 TS 源同步词典 ---------------------- */
+/* ------------------- 从词典真源生成节点代码 ------------------- */
 
-/** 从 lib/normalize.ts 抽出 ENTITY_VARIANTS 数组字面量 */
-function extractEntityVariantsLiteral(): string {
-  const src = readFileSync("lib/normalize.ts", "utf8");
-  const start = src.indexOf("export const ENTITY_VARIANTS");
-  if (start === -1) throw new Error("lib/normalize.ts 中找不到 ENTITY_VARIANTS");
-  const declEnd = src.indexOf("=", start);
-  if (declEnd === -1) throw new Error("ENTITY_VARIANTS 声明缺少赋值");
-  const arrStart = src.indexOf("[", declEnd);
-  if (arrStart === -1) throw new Error("ENTITY_VARIANTS 不是数组字面量");
+// 真源：lib/lexicon/tables.ts。
+// 这里不再手抄 ENTITY_VARIANTS / ENTITY_TYPE_MAP —— 那正是历史上漂移的根源
+// （n8n 侧 STOP_WORDS 曾与真源差 113 条，导致两侧去重判定不一致）。
+function literalFromSource(name: string): string {
+  const src = readFileSync("lib/lexicon/tables.ts", "utf8");
+  const declRe = new RegExp(`export const ${name}\\b[^=]*=\\s*([\\[{])`, "m");
+  const m = declRe.exec(src);
+  if (!m) throw new Error(`lib/lexicon/tables.ts 中找不到 ${name}`);
+  const start = m.index + m[0].length - 1;
 
   let depth = 0;
-  let end = -1;
   let inStr: string | null = null;
-  for (let i = arrStart; i < src.length; i++) {
+  let end = -1;
+  for (let i = start; i < src.length; i++) {
     const ch = src[i];
     if (inStr) {
       if (ch === "\\") { i++; continue; }
@@ -69,13 +69,16 @@ function extractEntityVariantsLiteral(): string {
       continue;
     }
     if (ch === '"' || ch === "'" || ch === "`") { inStr = ch; continue; }
-    if (ch === "[") depth++;
-    else if (ch === "]") { depth--; if (depth === 0) { end = i; break; } }
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
   }
-  if (end === -1) throw new Error("ENTITY_VARIANTS 数组未闭合");
+  if (end === -1) throw new Error(`${name} 字面量未闭合`);
 
   const literal = src
-    .slice(arrStart, end + 1)
+    .slice(start, end + 1)
     .split("\n")
     .filter((l) => !/^\s*\/\*/.test(l))
     .join("\n");
@@ -84,39 +87,25 @@ function extractEntityVariantsLiteral(): string {
   try {
     parsed = new Function(`return (${literal});`)();
   } catch (e) {
-    throw new Error(`ENTITY_VARIANTS 字面量无法解析：${(e as Error).message}`);
+    throw new Error(`${name} 字面量无法解析：${(e as Error).message}`);
   }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error("ENTITY_VARIANTS 抽取结果为空数组，抽取逻辑有误");
-  }
-  console.log(`实体词典同步：从 lib/normalize.ts 取到 ${parsed.length} 条`);
+  const count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed as object).length;
+  if (count === 0) throw new Error(`${name} 抽取结果为空，抽取逻辑有误`);
+  console.log(`词典同步：${name} 从 lib/lexicon/tables.ts 取到 ${count} 条`);
   return literal;
 }
 
-const ENTITY_VARIANTS_LITERAL = extractEntityVariantsLiteral();
+const ENTITY_VARIANTS_LITERAL = literalFromSource("ENTITY_VARIANTS");
 
 /* ------------------- 实体类型映射（契约 §3.4） ------------------- */
+//
+// 真源同样是 lib/lexicon/tables.ts（与 ENTITY_VARIANTS 同文件），
+// 这样「词典 + 类型映射 + 停用词」只有一处可改，不会再有第三份副本。
 
-const ENTITY_TYPE_MAP: Record<string, string> = {
-  // company
-  openai: "company", anthropic: "company", google: "company", nvidia: "company",
-  facebook: "company", microsoft: "company", amazon: "company", apple: "company",
-  deepseek: "company", github: "company", "hugging face": "company",
-  // ai_product
-  gpt: "ai_product", gemini: "ai_product", "cosmos 3": "ai_product",
-  "claude code": "ai_product", codex: "ai_product", copilot: "ai_product",
-  cursor: "ai_product", sora: "ai_product", midjourney: "ai_product",
-  perplexity: "ai_product", openrouter: "ai_product", qwen: "ai_product",
-  llama: "ai_product", rivet: "ai_product",
-  // technology
-  mcp: "technology", langchain: "technology", kubernetes: "technology",
-  postgres: "technology", redis: "technology", docker: "technology",
-  pii: "technology", "编程agent": "technology",
-  // organization
-  aws: "organization",
-};
-
-const ENTITY_TYPE_MAP_LITERAL = JSON.stringify(ENTITY_TYPE_MAP, null, 2);
+const ENTITY_TYPE_MAP_LITERAL = literalFromSource("ENTITY_TYPE_MAP");
+console.log(
+  `实体类型映射：从 lib/lexicon/tables.ts 取到 ${Object.keys(JSON.parse(ENTITY_TYPE_MAP_LITERAL)).length} 条`
+);
 
 /* ---------------------- 实体抽取 Code ---------------------- */
 

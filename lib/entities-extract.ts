@@ -11,7 +11,7 @@
 // - importance_score 用启发式规则（见 computeImportanceScore），1..10。
 //
 // 本文件严禁 import pg / fs / http 等任何 IO 模块，同输入必须同输出。
-import { ENTITY_VARIANTS } from "./normalize";
+import { ENTITY_VARIANTS, ENTITY_TYPE_MAP as ENTITY_TYPE_MAP_RAW } from "./lexicon/tables";
 import { parseReport } from "./markdown-parser";
 
 /** 实体类型枚举（与 entities.entity_type 的 CHECK 约束一致） */
@@ -35,49 +35,15 @@ export const ENTITY_TYPES: readonly EntityType[] = [
 ];
 
 /**
- * 规范名 → 实体类型（契约 §3.4 映射表，主控提供）
+ * 规范名 → 实体类型（契约 §3.4 映射表）
  * 表里没有的 canonical 一律 'unknown'，不猜测。
+ *
+ * 真源已迁到 lib/lexicon/tables.ts（n8n 的实体抽取节点也要用，避免第三处手抄副本）。
+ * 这里只做类型收窄后转出，对外 API 不变。
  */
-export const ENTITY_TYPE_MAP: Readonly<Record<string, EntityType>> = {
-  // company
-  openai: "company",
-  anthropic: "company",
-  google: "company",
-  nvidia: "company",
-  facebook: "company",
-  microsoft: "company",
-  amazon: "company",
-  apple: "company",
-  deepseek: "company",
-  github: "company",
-  "hugging face": "company",
-  // ai_product
-  gpt: "ai_product",
-  gemini: "ai_product",
-  "cosmos 3": "ai_product",
-  "claude code": "ai_product",
-  codex: "ai_product",
-  copilot: "ai_product",
-  cursor: "ai_product",
-  sora: "ai_product",
-  midjourney: "ai_product",
-  perplexity: "ai_product",
-  openrouter: "ai_product",
-  qwen: "ai_product",
-  llama: "ai_product",
-  rivet: "ai_product",
-  // technology
-  mcp: "technology",
-  langchain: "technology",
-  kubernetes: "technology",
-  postgres: "technology",
-  redis: "technology",
-  docker: "technology",
-  pii: "technology",
-  编程agent: "technology",
-  // organization
-  aws: "organization",
-};
+export const ENTITY_TYPE_MAP: Readonly<Record<string, EntityType>> = ENTITY_TYPE_MAP_RAW as Readonly<
+  Record<string, EntityType>
+>;
 
 /** 契约 §3.1 输入 */
 export interface ExtractInput {

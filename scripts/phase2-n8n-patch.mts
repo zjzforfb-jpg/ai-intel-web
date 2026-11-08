@@ -238,73 +238,68 @@ function patchValidation(): boolean {
 /* 施工项 5：语义去重链路                                              */
 /* ------------------------------------------------------------------ */
 
-/* 从 TS 源自动同步领域词典 ---------------------------------------------
- * 为什么这么做：DOMAIN_TERMS 有 190 条，手工抄写必然出错；
- * 一旦两边词典不一致，去重结果就会和 App 侧对不上。
- * 这里直接从 lib/normalize.ts 抽出 DOMAIN_TERMS 的字面量，
- * 原样嵌入 n8n 的 Code 节点（该段是纯对象字面量，TS 与 JS 语法等价）。
+/* 从词典真源生成 n8n 节点代码所需的字面量 -----------------------------
+ * 真源：lib/lexicon/tables.ts（唯一物理位置）
+ *
+ * 为什么不能手抄：这些表需要同时存在于 App 侧与 n8n 的两个 Code 节点，
+ * 历史上就是靠手抄，已经实际漂移过 —— n8n 侧 STOP_WORDS 119 条 vs 真源 185 条，
+ * 导致同一个标题在两侧算出不同关键词集、去重判定不一致。
+ * 现在一律从真源生成，漂移由 scripts/verify/lexicon-drift.mts 检出。
  */
-function extractDomainTermsLiteral(): string {
-  const src = readFileSync("lib/normalize.ts", "utf8");
-  const start = src.indexOf("export const DOMAIN_TERMS");
-  if (start === -1) throw new Error("lib/normalize.ts 中找不到 DOMAIN_TERMS");
-  // 声明形如：export const DOMAIN_TERMS: readonly DomainTerm[] = [
-  // 类型注解里也有 []，所以必须从「= [」之后定位真正的数组起始。
-  const declEnd = src.indexOf("=", start);
-  if (declEnd === -1) throw new Error("DOMAIN_TERMS 声明缺少赋值");
-  const arrStart = src.indexOf("[", declEnd);
-  if (arrStart === -1) throw new Error("DOMAIN_TERMS 不是数组字面量");
+function literalFromSource(name: string): string {
+  const src = readFileSync("lib/lexicon/tables.ts", "utf8");
+  const declRe = new RegExp(`export const ${name}\\b[^=]*=\\s*([\\[{])`, "m");
+  const m = declRe.exec(src);
+  if (!m) throw new Error(`lib/lexicon/tables.ts 中找不到 ${name}`);
+  const openCh = m[1];
+  const start = m.index + m[0].length - 1;
 
-  // 从 [ 开始做括号配平，找到配对的 ]
+  // 字符级括号配平：不能用正则，字符串字面量里也可能出现括号
   let depth = 0;
-  let end = -1;
   let inStr: string | null = null;
-  for (let i = arrStart; i < src.length; i++) {
+  let end = -1;
+  for (let i = start; i < src.length; i++) {
     const ch = src[i];
     if (inStr) {
-      if (ch === "\\") {
-        i++; // 跳过转义字符
-        continue;
-      }
+      if (ch === "\\") { i++; continue; }
       if (ch === inStr) inStr = null;
       continue;
     }
-    if (ch === '"' || ch === "'" || ch === "`") {
-      inStr = ch;
-      continue;
-    }
-    if (ch === "[") depth++;
-    else if (ch === "]") {
+    if (ch === '"' || ch === "'" || ch === "`") { inStr = ch; continue; }
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
       depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
+      if (depth === 0) { end = i; break; }
     }
   }
-  if (end === -1) throw new Error("DOMAIN_TERMS 数组未闭合");
+  if (end === -1) throw new Error(`${name} 字面量未闭合`);
 
   const literal = src
-    .slice(arrStart, end + 1)
+    .slice(start, end + 1)
     .split("\n")
     .filter((l) => !/^\s*\/\*/.test(l)) // 去掉块注释行
     .join("\n");
 
-  // 硬校验：抽出来必须是能解析的非空数组，否则说明抽取逻辑坏了
+  // 硬校验：必须能解析且非空，否则说明抽取逻辑坏了
   let parsed: unknown;
   try {
     parsed = new Function(`return (${literal});`)();
   } catch (e) {
-    throw new Error(`DOMAIN_TERMS 字面量无法解析：${(e as Error).message}`);
+    throw new Error(`${name} 字面量无法解析：${(e as Error).message}`);
   }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error(`DOMAIN_TERMS 抽取结果为空数组，抽取逻辑有误`);
-  }
-  console.log(`领域词典同步：从 lib/normalize.ts 取到 ${parsed.length} 条`);
+  const count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed as object).length;
+  if (count === 0) throw new Error(`${name} 抽取结果为空，抽取逻辑有误`);
+  console.log(`词典同步：${name} 从 lib/lexicon/tables.ts 取到 ${count} 条`);
   return literal;
 }
 
-const DOMAIN_TERMS_LITERAL = extractDomainTermsLiteral();
+const DOMAIN_TERMS_LITERAL = literalFromSource("DOMAIN_TERMS");
+const ENTITY_VARIANTS_LITERAL = literalFromSource("ENTITY_VARIANTS");
+const STOP_WORDS_LITERAL = literalFromSource("STOP_WORDS");
+const MEANINGLESS_PREFIXES_LITERAL = literalFromSource("MEANINGLESS_PREFIXES");
+const MARKETING_MODIFIERS_LITERAL = literalFromSource("MARKETING_MODIFIERS");
+const PREFIX_EXCEPTIONS_LITERAL = literalFromSource("PREFIX_EXCEPTIONS");
+const TOPIC_CATEGORIES_LITERAL = literalFromSource("TOPIC_CATEGORIES");
 
 // —— 移植自 lib/normalize.ts + lib/dedup.ts（契约要求零 Node API 依赖）——
 const NORMALIZE_JS = `
@@ -312,75 +307,18 @@ const NORMALIZE_JS = `
 // 注意：本段代码严禁使用 Node 内置模块或第三方 API，只能用字符串与正则运算，
 //       这样才能在 n8n Code 节点沙箱中安全执行。
 
-// 领域词典：由 scripts/phase2-n8n-patch.mts 从 lib/normalize.ts 自动同步，
-// 请勿手工修改本段 —— 要改就改 TS 源，再重新 apply。
+// 领域词典与各词表：由 scripts/phase2-n8n-patch.mts 从 lib/lexicon/tables.ts 自动生成，
+// 请勿手工修改本段 —— 要改就改真源，再重新 apply。
 const DOMAIN_TERMS = ${DOMAIN_TERMS_LITERAL};
 
-const ENTITY_VARIANTS = [
-  { canonical: "claude code", variants: ["claude code", "claude-code", "claudecode", "claude code cli", "claudecodecli"], related: ["anthropic", "编程agent"] },
-  { canonical: "anthropic", variants: ["anthropic"], related: ["claude code"] },
-  { canonical: "codex", variants: ["codex", "codex cli", "openai codex", "openai-codex"], related: ["openai", "编程agent"] },
-  { canonical: "openai", variants: ["openai", "open ai", "open-ai"], related: ["codex", "gpt"] },
-  { canonical: "gpt", variants: ["gpt", "gpt-4", "gpt-5", "gpt4", "gpt5", "chatgpt"], related: ["openai"] },
-  { canonical: "google", variants: ["google", "谷歌"], related: ["gemini"] },
-  { canonical: "gemini", variants: ["gemini", "gemini omni", "gemini omni 1.2 flash", "google gemini"], related: ["google"] },
-  { canonical: "nvidia", variants: ["nvidia", "英伟达"], related: ["cosmos 3"] },
-  { canonical: "cosmos 3", variants: ["cosmos 3", "cosmos3", "cosmos-3", "nvidia cosmos 3"], related: ["nvidia"] },
-  { canonical: "facebook", variants: ["facebook", "meta", "fb"] },
-  { canonical: "rivet", variants: ["rivet"] },
-  { canonical: "microsoft", variants: ["microsoft", "微软"], related: ["copilot"] },
-  { canonical: "copilot", variants: ["copilot"], related: ["microsoft"] },
-  { canonical: "amazon", variants: ["amazon", "亚马逊"], related: ["aws"] },
-  { canonical: "aws", variants: ["aws"], related: ["amazon"] },
-  { canonical: "apple", variants: ["apple", "苹果"] },
-  { canonical: "deepseek", variants: ["deepseek", "深度求索"] },
-  { canonical: "qwen", variants: ["qwen", "通义千问", "通义"] },
-  { canonical: "llama", variants: ["llama", "llama 3"] },
-  { canonical: "cursor", variants: ["cursor"] },
-  { canonical: "github", variants: ["github", "git hub"] },
-  { canonical: "hugging face", variants: ["hugging face", "huggingface"] },
-  { canonical: "langchain", variants: ["langchain"] },
-  { canonical: "mcp", variants: ["mcp", "model context protocol"] },
-  { canonical: "kubernetes", variants: ["kubernetes", "k8s"] },
-  { canonical: "postgres", variants: ["postgres", "postgresql"] },
-  { canonical: "redis", variants: ["redis"] },
-  { canonical: "docker", variants: ["docker"] },
-  { canonical: "perplexity", variants: ["perplexity"] },
-  { canonical: "midjourney", variants: ["midjourney"] },
-  { canonical: "sora", variants: ["sora"] },
-  { canonical: "openrouter", variants: ["openrouter"] },
-  { canonical: "编程agent", variants: ["ai编程agent", "ai 编程agent", "编码agent", "代码agent", "编程agent", "ai编程工具", "ai编程神器", "ai编程助手"], related: ["codex", "claude code"] },
-  { canonical: "pii", variants: ["pii"] }
-];
+const ENTITY_VARIANTS = ${ENTITY_VARIANTS_LITERAL};
 
-const STOP_WORDS = ["的","了","是","在","和","与","及","或","也","都","就","还","又","更","最","很","太","挺","但","却","而","并","把","被","让","使","给","从","向","到","对","为","以","于","其","之","这","那","哪","什","么","怎","样","如","何","谁","仍","已","将","曾","正","刚","才","只","再","各","某","该","本","此","一","个","些","点","种","类","位","名","事","时","年","月","日","天","中","下","上","里","外","前","后","左","右","个","家","多","少","高","低","大","小","好","新","旧","想","看","说","用","做","让","给","想","能","可","会","要","有","无","不","没","很","更","最","太","挺","或","及","与","和"];
-const MEANINGLESS_PREFIXES = ["为什么","怎么样","怎么办","有没有","是不是","究竟","到底","请问","大家","如何","怎样","怎么","什么","是否","可以","能否","一个","关于","针对","基于","通过","值得","需要","建议","其实","用","做","的","了","吗","呢"];
-const MARKETING_MODIFIERS = ["重磅","最新","独家","深度","终极","全新","最强","必看","实测","亲测","免费","限时","推荐","抢先","揭秘","突发","刚刚","首次","罕见","最全","最细","一文读懂","全解析","干货","收藏","必存","手把手","保姆级","惊呆","震撼","刷屏","霸榜"];
-const PREFIX_EXCEPTIONS = {
-  用: ["户","途","例","工","语","事","量","时","心","意","情","场","法","电","药","款","品"],
-  做: ["法","空","出"],
-  的: ["确"],
-  了: ["解","结","事","然"],
-  开: ["发","源","始","放"],
-  是: ["否"],
-  会: ["计","员"]
-};
+const STOP_WORDS = ${STOP_WORDS_LITERAL};
+const MEANINGLESS_PREFIXES = ${MEANINGLESS_PREFIXES_LITERAL};
+const MARKETING_MODIFIERS = ${MARKETING_MODIFIERS_LITERAL};
+const PREFIX_EXCEPTIONS = ${PREFIX_EXCEPTIONS_LITERAL};
 
-const TOPIC_CATEGORIES = [
-  { tag: "隐私安全", triggers: ["隐私","脱敏","泄露","审计","出站","网关","代理","白名单","拦截","敏感","加密","权限","身份","合规","风控","漏洞","攻击","防护","防火墙","审查","令牌","邮箱","邮件","证书","密钥","供应链","检测","监控","溯源","pii","域名"] },
-  { tag: "成本价格", triggers: ["成本","便宜","价格","降价","费用","预算","性价比","省钱","涨价","账单"] },
-  { tag: "评测对比", triggers: ["评测","基准","对比","效率","准确率","成功率","质量","指标","榜单","复现","评估","性能","跑分"] },
-  { tag: "模型发布", triggers: ["模型","发布","开源","权重","版本","上线","微调","蒸馏","参数","能力","gemini","openai","gpt","google","anthropic","cosmos 3"] },
-  { tag: "仿真训练", triggers: ["仿真","训练场","合成数据","世界模型","机器人","训练","nvidia"] },
-  { tag: "平台治理", triggers: ["广告","深伪","诈骗","治理","审核","违规","监管","标注","换脸","争议","指控","平台","诉讼","侵权","版权","金额","facebook"] },
-  { tag: "部署运维", triggers: ["部署","托管","运维","编排","迁移","容器","休眠","扩容","集群","备份","恢复","架构","可观测","长任务","长周期","轻量","状态","服务","无服务器","rivet"] },
-  { tag: "工具定制", triggers: ["内部","定制","看板","报表","流程","自动化","排班","工单","垂直","交付","订阅","项目","业务","场景","需求","提效","运营","工作流"] },
-  { tag: "算力性能", triggers: ["gpu","cpu","算力","显卡","芯片","hbm","内存","瓶颈","延迟","吞吐","存储","带宽"] },
-  { tag: "多模态创作", triggers: ["视频","图像","多模态","剪辑","生成","创作","内容","音频","画质","一致性"] },
-  { tag: "开发工具", triggers: ["编程","代码","编码","开发者","开发","工具链","仓库","重构","调试","插件","编程agent","claude code","codex","cursor","copilot","microsoft"] },
-  { tag: "路由调度", triggers: ["路由","调度","聚合","多模型","兜底","中转"] },
-  { tag: "长文本", triggers: ["上下文","长上下文","记忆","缓存","窗口","截断","更长","长片段","长文本","长文"] }
-];
+const TOPIC_CATEGORIES = ${TOPIC_CATEGORIES_LITERAL};
 
 const CJK = "[\\\\u3400-\\\\u4dbf\\\\u4e00-\\\\u9fff\\\\uf900-\\\\ufaff]";
 const RE_CJK = new RegExp(CJK);
