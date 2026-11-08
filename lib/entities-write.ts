@@ -4,14 +4,18 @@
 // 红线：
 // - 全部 SQL 参数化，不拼接任何用户输入；
 // - 实体 upsert 只刷新 updated_at，绝不覆盖 description / website（人工字段）；
-// - mention 以 (entity_id, report_id, source_title) 为幂等键，重复执行不新增行。
+// - mention 以 (entity_id, report_id) 为幂等键，一篇日报里一个实体只有一行，重复执行不新增行。
 //
-// 实现注意（与契约的一处偏差，已在交付说明中报告）：
-// Postgres 的 UNIQUE 约束把 NULL 视为互不相等，因此 report_id 为 NULL 时
-// `ON CONFLICT (entity_id, report_id, source_title)` 不会去重（实测重复写入会得到 2 行）。
-// 本文件对 report_id 非空的正常链路严格使用契约给的 ON CONFLICT 写法；
-// 仅当 report_id 无法解析（日报未入库）时，退回「先 UPDATE 命中则更新，否则 INSERT」，
-// 以保证任何情况下同一 (实体, 日报, 头条) 都只有一行。
+// 实现注意：
+// 数据库上的唯一约束是 UNIQUE (entity_id, report_id)（migrations/006 + 010 的最终形态）。
+// 早期版本这里写成三列 (entity_id, report_id, source_title)，与库约束不匹配，
+// report_id 非空时必定抛 42P10（there is no unique or exclusion constraint matching
+// the ON CONFLICT specification）。因为当时所有测试都传 reportId: null 走下面的 NULL 分支，
+// 这个缺陷长期未被覆盖；现已由 tests/entities.test.ts 的「真实 report_id」用例守住。
+//
+// 分数语义与 n8n 侧保持一致：重跑同一篇日报时，source_title / source_url / context /
+// importance_score 全部覆盖为最新一次，而不是取历史最大值。
+// （n8n 侧：scripts/phase3-n8n-entities.mts 的 ON CONFLICT ... DO UPDATE SET 即此语义）
 import { getReadPool } from "./db";
 import { getWritePool } from "./db-write";
 import {
@@ -122,9 +126,11 @@ async function upsertMentionOn(
       `INSERT INTO entity_mentions
          (entity_id, report_id, mention_date, source_title, source_url, context, importance_score)
        VALUES ($1, $2, $3::date, $4, $5, $6, $7)
-       ON CONFLICT (entity_id, report_id, source_title) DO UPDATE SET
+       ON CONFLICT (entity_id, report_id) DO UPDATE SET
+         source_title = EXCLUDED.source_title,
+         source_url = EXCLUDED.source_url,
          context = EXCLUDED.context,
-         importance_score = GREATEST(entity_mentions.importance_score, EXCLUDED.importance_score)
+         importance_score = EXCLUDED.importance_score
        RETURNING (xmax = 0) AS inserted`,
       [
         row.entityId,
@@ -139,22 +145,27 @@ async function upsertMentionOn(
     return res.rows[0]?.inserted === true ? "inserted" : "updated";
   }
 
-  // report_id 为 NULL：UNIQUE 约束不去重，先按 IS NOT DISTINCT FROM 探一次
+  // report_id 为 NULL（日报尚未入库）：UNIQUE 索引对 NULL 不去重（NULL 互不相等），
+  // 因此用 mention_date 作为「哪一篇日报」的等价判据，保证 (实体, 日报) 仍只有一行。
+  // 注意：这里不能用 source_title 当判据 —— 日报重跑时 LLM 会重写标题，
+  // 按标题判重会在同一天插出第二行，导致 mentionCount / distinctMentionDays 被高估。
   const existed = await client.query(
     `SELECT id::int AS id FROM entity_mentions
      WHERE entity_id = $1
        AND report_id IS NULL
-       AND source_title IS NOT DISTINCT FROM $2
+       AND mention_date = $2::date
      LIMIT 1`,
-    [row.entityId, row.sourceTitle]
+    [row.entityId, row.reportDate]
   );
   if (existed.rows.length > 0) {
     await client.query(
       `UPDATE entity_mentions
-       SET context = $1,
-           importance_score = GREATEST(importance_score, $2)
-       WHERE id = $3::int`,
-      [row.context, score, existed.rows[0].id]
+       SET source_title = $1,
+           source_url = $2,
+           context = $3,
+           importance_score = $4
+       WHERE id = $5::int`,
+      [row.sourceTitle, row.sourceUrl, row.context, score, existed.rows[0].id]
     );
     return "updated";
   }

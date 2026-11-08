@@ -27,7 +27,9 @@ docker exec -i n8n-radar-postgres sh -c \
 
 ### 2.1 回滚 008（幂等约束变更）
 
-008 只改了 `entity_mentions` 的唯一约束，把 `(entity_id, report_id)` 换回三列版本。
+008 把 `entity_mentions` 的唯一约束从「实体+日报+头条」三列收窄为「实体+日报」两列。
+回滚到更早的三列形态（**注意：这会重新引入「日报重跑累积重复提及」的问题，
+仅在需要逐行追溯历史时使用；正常情况不应回滚**）。
 
 ```sql
 ALTER TABLE entity_mentions DROP CONSTRAINT IF EXISTS entity_mentions_entity_report_key;

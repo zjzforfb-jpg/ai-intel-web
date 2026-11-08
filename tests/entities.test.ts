@@ -238,19 +238,18 @@ describe("跨日报统计", () => {
 describe("幂等", () => {
   test("同一日报重复执行 → 实体数与 mention 数都不变", async () => {
     const entityId = await createTestEntity("幂等", "ai_product");
-    const rows = [
-      mentionRow(entityId, "2099-02-01", "__test__幂等头条A", { importanceScore: 5 }),
-      mentionRow(entityId, "2099-02-01", "__test__幂等头条B", { importanceScore: 3 }),
-    ];
+    // 一篇日报里一个实体只算一条提及（幂等键 = entity_id + report_id/report_date），
+    // 即使它出现在两个头条里也一样。
+    const rows = [mentionRow(entityId, "2099-02-01", "__test__幂等头条A", { importanceScore: 5 })];
 
     const first = await writeMentions(rows);
-    assert.deepEqual(first, { inserted: 2, updated: 0 });
+    assert.deepEqual(first, { inserted: 1, updated: 0 });
 
     const second = await writeMentions(rows);
-    assert.deepEqual(second, { inserted: 0, updated: 2 }, "第二次全部走更新");
+    assert.deepEqual(second, { inserted: 0, updated: 1 }, "第二次全部走更新");
 
     const detail = await getEntityDetail(entityId, { asOf: "2099-02-01" });
-    assert.equal(detail?.stats.mentionCount, 2, "重复执行后提及数不变");
+    assert.equal(detail?.stats.mentionCount, 1, "重复执行后提及数不变");
 
     const entityCount = await cleanupPool.query(
       "SELECT count(*)::int AS n FROM entities WHERE normalized_name = $1",
@@ -259,14 +258,70 @@ describe("幂等", () => {
     assert.equal(entityCount.rows[0].n, 1, "重复 upsert 不新增实体");
   });
 
-  test("importance_score 重复写入取较大值（GREATEST），不被覆盖成更小值", async () => {
+  test("同一 (实体, 日报) 重复写入是覆盖而非累加：分数与来源跟随最新一次", async () => {
     const entityId = await createTestEntity("重要度", "technology");
-    await writeMentions([mentionRow(entityId, "2099-02-02", "__test__重要度头条", { importanceScore: 8 })]);
-    await writeMentions([mentionRow(entityId, "2099-02-02", "__test__重要度头条", { importanceScore: 3 })]);
+    await writeMentions([
+      mentionRow(entityId, "2099-02-02", "__test__旧头条", { importanceScore: 8 }),
+    ]);
+    // 日报重跑：标题被 LLM 重写、分数与上下文都是新的
+    await writeMentions([
+      mentionRow(entityId, "2099-02-02", "__test__重跑头条", {
+        importanceScore: 3,
+        sourceUrl: "https://example.com/new",
+        context: "新上下文",
+      }),
+    ]);
 
     const detail = await getEntityDetail(entityId, { asOf: "2099-02-02" });
-    assert.equal(detail?.mentions.length, 1);
-    assert.equal(detail?.mentions[0].importanceScore, 8);
+    assert.equal(detail?.mentions.length, 1, "重跑不新增行");
+    // 与 n8n 侧 ON CONFLICT ... DO UPDATE SET 的语义一致：覆盖为最新值，而非取历史最大值
+    assert.equal(detail?.mentions[0].importanceScore, 3);
+    assert.equal(detail?.mentions[0].sourceTitle, "__test__重跑头条");
+    assert.equal(detail?.mentions[0].sourceUrl, "https://example.com/new");
+    assert.equal(detail?.mentions[0].context, "新上下文");
+  });
+
+  // 回归用例：这条路径在修复前必然报
+  //   "there is no unique or exclusion constraint matching the ON CONFLICT specification"
+  // 因为代码写的是三列 ON CONFLICT，而库里只有 UNIQUE (entity_id, report_id)。
+  // 修复前所有测试都传 reportId: null，走的是另一条 NULL 分支，所以这个缺陷一直没被覆盖。
+  test("真实 report_id：同一实体重跑不新增行（走 ON CONFLICT (entity_id, report_id)）", async (t) => {
+    // 动态取一篇真实日报，避免硬编码 2026-11-06 后因历史数据变动而误挂
+    const latest = await cleanupPool.query<{ id: number; report_date: string }>(
+      "SELECT id::int AS id, report_date::text AS report_date FROM daily_reports ORDER BY report_date DESC LIMIT 1"
+    );
+    if (latest.rows.length === 0) {
+      t.skip("库里没有任何日报，无法构造 report_id 非空的用例");
+      return;
+    }
+    const { id: reportId, report_date: reportDate } = latest.rows[0];
+    assert.equal(await resolveReportId(reportDate), reportId, "resolveReportId 应与直查一致");
+
+    const entityId = await createTestEntity("真实日报", "company");
+    const first = await writeMentions([
+      mentionRow(entityId, reportDate, "__test__旧标题", { reportId, importanceScore: 6 }),
+    ]);
+    assert.deepEqual(first, { inserted: 1, updated: 0 });
+
+    // 日报重跑时 LLM 会重写标题：若幂等键含 source_title，这里会插出第二行
+    const second = await writeMentions([
+      mentionRow(entityId, reportDate, "__test__新标题", {
+        reportId,
+        importanceScore: 7,
+        sourceUrl: "https://example.com/new",
+        context: "新上下文",
+      }),
+    ]);
+    assert.deepEqual(second, { inserted: 0, updated: 1 }, "标题变了也复用同一行");
+
+    const rows = await cleanupPool.query<{ n: number; title: string; score: number }>(
+      `SELECT count(*)::int AS n, min(source_title) AS title, max(importance_score)::int AS score
+       FROM entity_mentions WHERE entity_id = $1`,
+      [entityId]
+    );
+    assert.equal(rows.rows[0].n, 1, "同一实体同一日报只允许一行");
+    assert.equal(rows.rows[0].title, "__test__新标题", "来源标题应被刷新为最新一次");
+    assert.equal(rows.rows[0].score, 7, "重要度按最新一次覆盖，与 n8n 侧一致");
   });
 
   test("writeExtraction：无实体命中的日报不写任何行", async () => {
@@ -462,27 +517,23 @@ describe("dataSufficient", () => {
       mentionRow(twoMentions, "2099-07-01", "__test__两提头条1"),
       mentionRow(twoMentions, "2099-07-02", "__test__两提头条2"),
     ]);
-    const sameDay = await createTestEntity("同日三次", "company");
-    await writeMentions([
-      mentionRow(sameDay, "2099-07-01", "__test__同日头条1"),
-      mentionRow(sameDay, "2099-07-01", "__test__同日头条2"),
-      mentionRow(sameDay, "2099-07-01", "__test__同日头条3"),
-    ]);
+    // 同一实体一天最多一条提及，所以「同一天 3 条」这个状态只存在于纯函数层，
+    // 落库侧会塌缩成 1 条 —— 这里改为跨越 3 个自然日。
     const acrossDays = await createTestEntity("跨日三次", "company");
     await writeMentions([
       mentionRow(acrossDays, "2099-07-01", "__test__跨日头条1"),
-      mentionRow(acrossDays, "2099-07-01", "__test__跨日头条2"),
-      mentionRow(acrossDays, "2099-07-02", "__test__跨日头条3"),
+      mentionRow(acrossDays, "2099-07-02", "__test__跨日头条2"),
+      mentionRow(acrossDays, "2099-07-03", "__test__跨日头条3"),
     ]);
 
     const a = await getEntityDetail(twoMentions, { asOf: "2099-07-02" });
     assert.equal(a?.stats.dataSufficient, false);
-    const b = await getEntityDetail(sameDay, { asOf: "2099-07-02" });
-    assert.equal(b?.stats.dataSufficient, false);
-    const c = await getEntityDetail(acrossDays, { asOf: "2099-07-02" });
+    assert.equal(a?.stats.mentionCount, 2);
+    assert.equal(a?.stats.distinctMentionDays, 2);
+    const c = await getEntityDetail(acrossDays, { asOf: "2099-07-03" });
     assert.equal(c?.stats.dataSufficient, true);
     assert.equal(c?.stats.mentionCount, 3);
-    assert.equal(c?.stats.distinctMentionDays, 2);
+    assert.equal(c?.stats.distinctMentionDays, 3);
   });
 });
 

@@ -251,15 +251,22 @@ interface ExtractedMention {
 
 ### 3.5 幂等要求
 
-同一 `(entity_id, report_id, source_title)` 只允许一行。
-写入必须用：
+同一 `(entity_id, report_id)` 只允许一行 —— 一篇日报里一个实体只算一次提及，
+即使它出现在多个头条里。写入必须用：
 
 ```sql
 INSERT INTO entity_mentions (...) VALUES (...)
-ON CONFLICT (entity_id, report_id, source_title) DO UPDATE SET
+ON CONFLICT (entity_id, report_id) DO UPDATE SET
+  source_title = EXCLUDED.source_title,
+  source_url = EXCLUDED.source_url,
   context = EXCLUDED.context,
-  importance_score = GREATEST(entity_mentions.importance_score, EXCLUDED.importance_score)
+  importance_score = EXCLUDED.importance_score
 ```
+
+> 幂等键**不含 `source_title`**：日报重跑时 LLM 会重写头条标题，若把标题纳入唯一键，
+> 重跑就会不断累积「同一实体在同一篇日报」的重复提及（实测 8 → 17 条）。
+> `DO UPDATE` 用覆盖语义（不是 `GREATEST`），与 n8n 侧 `scripts/phase3-n8n-entities.mts` 一致。
+> `report_id` 为 NULL 时（日报尚未入库）唯一索引不去重，由应用层按 `mention_date` 兜底去重。
 
 实体本身：
 
