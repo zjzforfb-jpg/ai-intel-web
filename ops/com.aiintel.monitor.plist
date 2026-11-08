@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  每日日报质量检查（09:05）
+  - 08:30 n8n 出报，一次执行约 157 秒；09:05 留了 30+ 分钟余量
+  - 09:15 是容器 sidecar 的 pg_dump，09:40 是备份脚本，三件事错开互不重叠
+
+  安装：
+    cp ops/com.aiintel.monitor.plist ~/Library/LaunchAgents/
+    osascript -e 'do shell script "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aiintel.monitor.plist" with administrator privileges'
+
+  卸载：launchctl bootout gui/$(id -u)/com.aiintel.monitor
+
+  注意：
+  - 必须用绝对路径的 node。不要用 WorkBuddy 会话托管目录下的 node
+    （HOME_DIR//.workbuddy/binaries/...），那个目录会随版本回收消失。
+  - StandardOutPath / StandardErrorPath 必须放 /tmp：
+    launchd 在 exec 前打开外挂卷上的文件会报 EX_CONFIG(78)。
+  - 不加 KeepAlive：monitor:check 的退出码 2 表示「有 error 级发现」，
+    属于正常完成，不能让 launchd 认为失败而反复重启。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aiintel.monitor</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>--env-file=.env.local</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>scripts/monitor-check.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>PROJECT_ROOT/ai-intel-web</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>5</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/aiintel_monitor.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/aiintel_monitor.err</string>
+</dict>
+</plist>

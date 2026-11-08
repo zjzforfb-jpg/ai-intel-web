@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  每日备份（09:40）：n8n SQLite 快照 + git bundle
+  PG 全量由容器 sidecar 在 09:15 完成，本脚本只校验其产物、缺失才补做。
+
+  时间线：08:30 n8n 出报 → 09:05 监控 → 09:15 sidecar pg_dump → 09:40 备份
+
+  安装：
+    cp ops/com.aiintel.backup.plist ~/Library/LaunchAgents/
+    osascript -e 'do shell script "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aiintel.backup.plist" with administrator privileges'
+
+  卸载：launchctl bootout gui/$(id -u)/com.aiintel.backup
+
+  注意：
+  - 脚本自己会 export PATH，但这里仍显式给一份，避免 launchd 的最小环境导致
+    docker / git 找不到（docker 在 /usr/local/bin，git 在 /usr/bin）。
+  - 日志路径必须 /tmp：外挂卷上的文件在 exec 前打开会 EX_CONFIG(78)。
+  - 脚本失败时以非零码退出，launchd 会在 print 的 last exit code 里体现。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aiintel.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>BACKUP_DIR//backup.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>40</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/aiintel_backup.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/aiintel_backup.err</string>
+</dict>
+</plist>
