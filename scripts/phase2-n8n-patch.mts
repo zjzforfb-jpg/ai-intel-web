@@ -22,7 +22,23 @@ import { randomUUID } from "node:crypto";
 const DB_DIR = "/tmp/n8n-edit";
 const DB = `${DB_DIR}/database.sqlite`;
 const WF_ID = "ZtIAVVtWmcPLXywX";
-const OLD_VERSION = "ca9fa476-8ec1-4653-9dd5-f89902727cd0";
+
+// 基线版本改成动态读取「当前已发布的版本」，不再硬编码版本号。
+// 硬编码的后果：原始代码写死 ca9fa476，而线上早已是 885981f1，
+// 重跑时 SELECT 取不到行 → JSON.parse("") 直接 SyntaxError。
+const OLD_VERSION = sqliteStr(
+  `SELECT activeVersionId FROM workflow_entity WHERE id='${WF_ID}'`
+);
+
+function sqliteStr(sql: string): string {
+  const out = execSync(`cd ${DB_DIR} && sqlite3 database.sqlite`, {
+    encoding: "utf-8",
+    input: `${sql}\n`,
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+  if (!out) throw new Error(`查询无结果（n8n 快照是否已就绪？）：${sql}`);
+  return out;
+}
 
 const mode = process.argv[2] ?? "inspect";
 
