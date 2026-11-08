@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { TopicForm } from "@/components/topics/TopicForm";
 
-export const dynamic = "force-dynamic";
+// 表单页本身不读库（只是渲染 TopicForm），可缓存。
+export const revalidate = 3600;
 
 export default function NewTopicPage() {
   return (

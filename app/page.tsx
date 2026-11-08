@@ -10,7 +10,10 @@ import { DbErrorState } from "@/components/DbErrorState";
 import { Flame, TrendingUp, Target, BookOpen, ArrowRight, Inbox } from "lucide-react";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+// 首页只读、无写后回显，日报一天只变一次（n8n 08:30 出报）。
+// 缓存 5 分钟：足够快，且"今日报告"标签最多滞后 5 分钟，可接受。
+// 注意：不能用 revalidateTag —— 数据是 n8n 直接写库的，Next 侧收不到失效信号。
+export const revalidate = 300;
 
 export default async function HomePage() {
   let report = null;

@@ -16,8 +16,17 @@ import { StatCard } from "@/components/StatCard";
 import { EntityTypeBadge } from "@/components/entities/EntityTypeBadge";
 import { DataSufficiencyNotice } from "@/components/entities/DataSufficiencyNotice";
 import { MentionTimeline } from "@/components/entities/MentionTimeline";
+import { dbHint } from "@/lib/config";
 
-export const dynamic = "force-dynamic";
+// 实体详情是纯阅读页（无写操作、无写后回显）。
+// 实体提及由 n8n 每天 08:30 更新一次，缓存 5 分钟足够。
+export const revalidate = 300;
+
+// 动态段必须显式声明 generateStaticParams 才会走「按需生成 + ISR」；
+// 返回空数组 ⇒ 不预生成任何 id，首次访问时生成并缓存，新实体无需重新构建。
+export function generateStaticParams(): Array<{ id: string }> {
+  return [];
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -55,7 +64,7 @@ export default async function EntityDetailPage({ params }: PageProps) {
       <DbErrorState
         title="无法读取实体详情"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、只读账号凭据是否有效。`}
+        hint={dbHint("reader")}
       />
     );
   }

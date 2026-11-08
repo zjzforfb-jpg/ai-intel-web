@@ -1,4 +1,5 @@
-export const dynamic = "force-dynamic";
+// 纯静态文案页，无任何数据依赖：缓存一天，改动后由构建重新生成。
+export const revalidate = 3600;
 
 export default function AboutPage() {
   return (

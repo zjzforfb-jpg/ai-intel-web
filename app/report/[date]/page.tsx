@@ -5,7 +5,18 @@ import { notFound } from "next/navigation";
 import { ReportView } from "@/components/ReportView";
 import { DbErrorState } from "@/components/DbErrorState";
 
-export const dynamic = "force-dynamic";
+// 单篇日报是纯阅读页，历史的日报几乎不再变动。缓存 5 分钟。
+export const revalidate = 300;
+
+// 动态段要显式声明 generateStaticParams 才会走「按需生成 + ISR 缓存」；
+// 只写 revalidate 而不给这个函数，Next 会把整条路由当作纯动态渲染（no-store）。
+//
+// 这里刻意返回空数组：日报日期每天都在新增，构建期枚举没有意义，
+// 而且会让构建依赖数据库（DB 没起就 build 失败）。
+// 返回空 + 默认的 dynamicParams=true ⇒ 任意日期首次访问时生成，之后按 revalidate 命中缓存。
+export function generateStaticParams(): Array<{ date: string }> {
+  return [];
+}
 
 interface PageProps {
   params: Promise<{ date: string }>;
