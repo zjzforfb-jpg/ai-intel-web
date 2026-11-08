@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, RotateCw } from "lucide-react";
+import { dbHint } from "@/lib/config";
 
 interface DbErrorStateProps {
   /** 场景标题，例如「无法读取情报数据」 */
   title: string;
   detail?: string | null;
-  /** 补充排查提示 */
+  /** 补充排查提示；不传时用统一的 dbHint() */
   hint?: string;
 }
-
-/** 数据库端口（与 lib/db.ts 等连接配置一致，默认 5433） */
-const DB_PORT = process.env.DB_PORT ?? "5433";
 
 /**
  * 数据库异常时的统一错误态（服务端组件）
@@ -33,8 +31,7 @@ export function DbErrorState({ title, detail, hint }: DbErrorStateProps) {
           </p>
         )}
         <p className="text-xs text-[var(--color-text-muted)] mb-6">
-          {hint ??
-            `可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${DB_PORT} 是否可连、只读账号凭据是否有效。`}
+          {hint ?? dbHint("reader")}
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <a

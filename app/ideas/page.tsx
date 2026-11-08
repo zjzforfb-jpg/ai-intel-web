@@ -5,6 +5,7 @@ import { isIdeaStatus, IDEA_STATUSES, type IdeaRow, type IdeaStatus } from "@/li
 import { DbErrorState } from "@/components/DbErrorState";
 import { CreateIdeaSection } from "./CreateIdeaSection";
 import { IdeaCard } from "./IdeaCard";
+import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function IdeasPage({ searchParams }: { searchParams: Search
       <DbErrorState
         title="无法读取选题"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、数据库账号凭据是否有效。`}
+        hint={dbHint("any")}
       />
     );
   }

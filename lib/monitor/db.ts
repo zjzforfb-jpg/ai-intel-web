@@ -1,6 +1,7 @@
 // 监控数据库连接池 —— Owner: 主 Agent（共享热点，子 Agent 只读不改）
 // ai_intel_monitor 账号：业务表只读 + monitor_* 两表 CRUD
 import { Pool } from "pg";
+import { DB_PORT } from "@/lib/config";
 
 let pool: Pool | null = null;
 
@@ -14,7 +15,7 @@ export function getMonitorPool(): Pool {
 
   pool = new Pool({
     host: process.env.DB_HOST || "127.0.0.1",
-    port: Number(process.env.DB_PORT ?? "5433"),
+    port: Number(DB_PORT),
     user: process.env.DB_MONITOR_USER || "ai_intel_monitor",
     password,
     database: process.env.DB_NAME || "ai_intelligence",

@@ -8,6 +8,7 @@ import {
 import { PROJECT_STATUSES, type ProjectStatus, isProjectStatus } from "@/lib/content-projects-shared";
 import { DbErrorState } from "@/components/DbErrorState";
 import { ProjectCard } from "@/components/content/ProjectCard";
+import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
       <DbErrorState
         title="无法读取内容项目"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、数据库账号凭据是否有效。`}
+        hint={dbHint("any")}
       />
     );
   }

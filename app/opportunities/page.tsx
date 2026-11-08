@@ -10,6 +10,7 @@ import { CreateOpportunitySection } from "@/components/opportunities/CreateOppor
 import { OpportunityFilters } from "@/components/opportunities/OpportunityFilters";
 import { OpportunityListCard } from "@/components/opportunities/OpportunityListCard";
 import { OpportunityPagination } from "@/components/opportunities/OpportunityPagination";
+import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
       <DbErrorState
         title="无法读取商业机会"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、数据库账号凭据是否有效。`}
+        hint={dbHint("any")}
       />
     );
   }

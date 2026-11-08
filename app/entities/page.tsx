@@ -5,6 +5,7 @@ import { DbErrorState } from "@/components/DbErrorState";
 import { EntityFilters } from "@/components/entities/EntityFilters";
 import { EntityTable } from "@/components/entities/EntityTable";
 import { EntityPagination } from "@/components/entities/EntityPagination";
+import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function EntitiesPage({ searchParams }: { searchParams: Sea
       <DbErrorState
         title="无法读取实体列表"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、只读账号凭据是否有效。`}
+        hint={dbHint("reader")}
       />
     );
   }

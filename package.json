@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1",
     "monitor:check": "node --env-file=.env.local --import tsx scripts/monitor-check.ts",
-    "test": "node --env-file=.env.local --import tsx --test --test-concurrency=1 tests/rules.test.ts tests/store.test.ts tests/notify.test.ts tests/integration/monitor.test.ts tests/ideas.test.ts tests/opportunity-draft.test.ts tests/markdown-parser.test.ts tests/normalize.test.ts tests/dedup.test.ts tests/entities.test.ts tests/content-projects.test.ts"
+    "test": "node --env-file=.env.local --import tsx --test --test-concurrency=1 tests/*.test.ts tests/integration/*.test.ts",
+    "check": "tsc --noEmit && npm test && npm run build",
+    "verify:lexicon": "tsx scripts/verify/lexicon-drift.mts --source=all"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

@@ -18,6 +18,7 @@ import { ExportPanel } from "@/components/content/ExportPanel";
 import { ImportPanel } from "@/components/content/ImportPanel";
 import { SourcePanel } from "@/components/content/SourcePanel";
 import { ProductionTimeline } from "@/components/content/ProductionTimeline";
+import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function ContentDetailPage({ params }: PageProps) {
       <DbErrorState
         title="无法读取内容项目"
         detail={dbError}
-        hint={`可检查：Docker 中 n8n-radar-postgres 是否在运行、127.0.0.1:${process.env.DB_PORT ?? "5433"} 是否可连、数据库账号凭据是否有效。`}
+        hint={dbHint("any")}
       />
     );
   }
