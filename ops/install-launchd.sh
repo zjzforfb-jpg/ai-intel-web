@@ -52,14 +52,15 @@ BEFORE=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
 launchctl kickstart -k "gui/$UID_NUM/com.aiintel.backup" >/dev/null 2>&1
 
 BACKUP_OK=0
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+# 备份要写 4 行日志、耗时约 3 秒 —— 必须等到最终结论行，
+# 不能看到第一行就 break（那会把「还在跑」误判成「失败」）。
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
   sleep 1
   NOW=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
   if [ "$NOW" -gt "$BEFORE" ]; then
-    if tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | grep -q "backup OK"; then
-      BACKUP_OK=1
-    fi
-    break
+    NEW=$(tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null)
+    if echo "$NEW" | grep -q "backup OK"; then BACKUP_OK=1; break; fi
+    if echo "$NEW" | grep -q "backup FAILED"; then break; fi
   fi
 done
 

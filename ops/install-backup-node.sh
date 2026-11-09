@@ -42,15 +42,39 @@ BEFORE=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
 : > /tmp/aiintel_backup.out; : > /tmp/aiintel_backup.err
 launchctl kickstart -k "gui/$UID_NUM/$LABEL" >/dev/null 2>&1
 
+# 备份要写 4 行日志、耗时约 3 秒，不能看到第一行就判定——
+# 必须等到进程跑完（launchd 报 last exit code）或日志出现最终结论行。
 OK=0
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+FINISHED=0
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
   sleep 1
   NOW=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
   if [ "$NOW" -gt "$BEFORE" ]; then
-    if tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | grep -q "backup OK"; then OK=1; fi
-    break
+    NEW=$(tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null)
+    # 出现最终结论行才算跑完
+    if echo "$NEW" | grep -q "backup OK"; then
+      OK=1; FINISHED=1; break
+    fi
+    if echo "$NEW" | grep -q "backup FAILED"; then
+      FINISHED=1; break
+    fi
+  fi
+  # 进程已退出也算结束
+  if launchctl print "gui/$UID_NUM/$LABEL" 2>&1 | grep -q "last exit code = (never exited)"; then
+    :
+  elif launchctl print "gui/$UID_NUM/$LABEL" 2>&1 | grep -qE "last exit code = [0-9]"; then
+    sleep 1
+    NOW=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
+    if [ "$NOW" -gt "$BEFORE" ] && tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | grep -q "backup OK"; then
+      OK=1
+    fi
+    FINISHED=1; break
   fi
 done
+
+if [ $FINISHED -eq 0 ]; then
+  echo "（等待 30 秒仍未见结论行，可能仍在运行或异常）"
+fi
 
 echo "--- backup.log 新增 ---"
 tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | tail -8
