@@ -5,6 +5,7 @@ import { SearchControls, type HistoryQueryState } from "@/components/history/Sea
 import { SearchSnippet } from "@/components/history/SearchSnippet";
 import { Pagination } from "@/components/history/Pagination";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 import Link from "next/link";
 import { FileText, ArrowRight, SearchX, CalendarDays, Database } from "lucide-react";
 
@@ -94,17 +95,18 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      {/* 页头 */}
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mb-1">
-            历史档案馆
-          </h1>
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap">
+    <PageBody>
+      <PageHeader
+        title="历史档案馆"
+        subtitle={
+          <>
             <span className="inline-flex items-center gap-1.5">
               <Database size={13} />
-              共 <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">{facets.total}</span> 篇日报
+              共
+              <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
+                {facets.total}
+              </span>
+              篇日报
             </span>
             {facets.earliest_date && facets.latest_date && (
               <span className="inline-flex items-center gap-1.5">
@@ -112,9 +114,9 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
                 {formatDate(facets.earliest_date)} ~ {formatDate(facets.latest_date)}
               </span>
             )}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* 搜索与筛选 */}
       <SearchControls
@@ -124,7 +126,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
       />
 
       {/* 结果摘要 */}
-      <div className="flex items-center gap-2 text-[13px] text-[var(--color-text-muted)] flex-wrap">
+      <div className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)] flex-wrap">
         {keywords.length > 0 && (
           <span>
             搜索「<span className="text-[var(--color-accent-light)]">{keywords.join(" ")}</span>」
@@ -135,13 +137,13 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
         {year && <span>{year} 年</span>}
         {month && <span>{month} 月</span>}
         <span>
-          {hasCondition ? `命中 ${total} 篇` : `共 ${total} 篇`}（第 ${page} / ${totalPages} 页）
+          {hasCondition ? `命中 ${total} 篇` : `共 ${total} 篇`}（第 {page} / {totalPages} 页）
         </span>
       </div>
 
       {/* 日报列表 */}
       {items.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="card-l flex flex-col">
           {items.map((report) => {
             const snippet = keywords.length
               ? buildSnippet(report.report_markdown, keywords)
@@ -150,45 +152,59 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
               <Link
                 key={report.id}
                 href={`/report/${report.report_date}`}
-                className="block glass-card p-5 group hover:border-[var(--color-border-glow)]"
+                className="group block border-b border-[var(--color-border-subtle)] last:border-b-0 py-3.5 px-3 -mx-3 rounded-lg transition-colors hover:bg-[var(--color-bg-card-hover)]"
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3">
                   {/* 日期块 */}
-                  <div className="shrink-0 w-[4.5rem] text-center rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] py-2">
-                    <div className="text-lg font-bold text-[var(--color-text-primary)] tabular-nums leading-none">
+                  <div className="shrink-0 w-12 text-center rounded-lg bg-[var(--color-bg-card-hover)] border border-[var(--color-border-subtle)] py-1.5">
+                    <div className="text-[15px] font-bold text-[var(--color-text-primary)] tnum leading-none">
                       {report.report_date.slice(8, 10)}
                     </div>
-                    <div className="text-[11px] text-[var(--color-text-muted)] tabular-nums mt-1">
+                    <div className="text-[10px] text-[var(--color-text-muted)] tnum mt-1">
                       {report.report_date.slice(0, 7)}
                     </div>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-[17px] font-semibold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-light)] transition-colors leading-snug">
+                    <h3 className="text-[14px] font-semibold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-light)] transition-colors leading-snug [overflow-wrap:anywhere]">
                       {report.title}
                     </h3>
 
                     {snippet && <SearchSnippet segments={snippet} />}
 
-                    <div className="flex items-center gap-x-4 gap-y-1 mt-2 text-[13px] text-[var(--color-text-muted)] flex-wrap">
+                    <div className="flex items-center gap-x-4 gap-y-1 mt-1.5 text-[11px] text-[var(--color-text-muted)] flex-wrap">
                       <span>生成 {formatDateTime(report.generated_at)}</span>
                       {report.total_articles !== null && (
-                        <span>收录文章 <span className="text-[var(--color-text-secondary)] tabular-nums">{report.total_articles}</span></span>
+                        <span>
+                          收录文章{" "}
+                          <span className="text-[var(--color-text-secondary)] tnum">
+                            {report.total_articles}
+                          </span>
+                        </span>
                       )}
                       {report.headline_count !== null && (
-                        <span>重点头条 <span className="text-[var(--color-text-secondary)] tabular-nums">{report.headline_count}</span></span>
+                        <span>
+                          重点头条{" "}
+                          <span className="text-[var(--color-text-secondary)] tnum">
+                            {report.headline_count}
+                          </span>
+                        </span>
                       )}
                       {report.status && (
-                        <span className={report.status === "success" ? "text-green-400" : "text-amber-400"}>
+                        <span
+                          className={`badge ${
+                            report.status === "success" ? "badge-success" : "badge-warning"
+                          }`}
+                        >
                           {report.status === "success" ? "已生成" : report.status}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="shrink-0 self-center hidden sm:flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] group-hover:text-[var(--color-accent-light)] transition-colors">
+                  <div className="shrink-0 self-center hidden sm:flex items-center gap-1.5 text-[12px] text-[var(--color-text-muted)] group-hover:text-[var(--color-accent-light)] transition-colors">
                     查看完整报告
-                    <ArrowRight size={15} />
+                    <ArrowRight size={14} />
                   </div>
                 </div>
               </Link>
@@ -196,33 +212,33 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
           })}
         </div>
       ) : (
-        <div className="glass-card p-10 text-center">
+        <div className="empty-state">
           {page > 1 ? (
             <>
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">当前页码超出范围</p>
-              <p className="text-[13px] text-[var(--color-text-muted)] mb-5">
+              <p className="text-[14px] text-[var(--color-text-secondary)]">当前页码超出范围</p>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
                 共 {totalPages} 页，你访问的是第 {page} 页。
               </p>
               <Link
                 href={`/history${Object.keys(baseQuery).length ? `?${new URLSearchParams(baseQuery).toString()}` : ""}`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm hover:opacity-90 transition-opacity"
+                className="btn-primary mt-1"
               >
                 回到第 1 页
               </Link>
             </>
           ) : hasCondition ? (
             <>
-              <SearchX size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">未找到匹配的日报</p>
+              <SearchX size={26} className="text-[var(--color-text-muted)]" />
+              <p className="text-[14px] text-[var(--color-text-secondary)]">未找到匹配的日报</p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
                 试试更换关键词，或放宽日期 / 年月筛选条件。
               </p>
             </>
           ) : (
             <>
-              <FileText size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-base text-[var(--color-text-secondary)]">暂无历史日报</p>
-              <p className="text-[13px] text-[var(--color-text-muted)] mt-1">
+              <FileText size={26} className="text-[var(--color-text-muted)]" />
+              <p className="text-[14px] text-[var(--color-text-secondary)]">暂无历史日报</p>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
                 系统生成日报后会自动出现在这里。
               </p>
             </>
@@ -232,6 +248,6 @@ export default async function HistoryPage({ searchParams }: { searchParams: Sear
 
       {/* 分页（保留全部筛选条件） */}
       <Pagination page={page} totalPages={totalPages} baseQuery={baseQuery} />
-    </div>
+    </PageBody>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, type CSSProperties } from "react";
 import { Eraser, Filter } from "lucide-react";
 import {
   OPPORTUNITY_STATUSES,
-  STATUS_DOT_CLASS,
+  STATUS_COLOR_VAR_NAME,
   buildOpportunityQuery,
   type OpportunityStatus,
 } from "@/lib/opportunities-shared";
@@ -54,11 +54,11 @@ export function OpportunityFilters({
   const hasFilter = !!(currentStatus || currentCategory);
 
   return (
-    <div className="glass-card p-4 flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {/* 状态筛选 */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] mr-1">
-          <Filter size={13} />
+        <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--color-text-muted)] mr-1">
+          <Filter size={12} />
           状态
         </span>
 
@@ -67,45 +67,50 @@ export function OpportunityFilters({
           onClick={() => apply({ status: "" })}
           disabled={isPending}
           aria-pressed={!currentStatus}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] transition-all disabled:opacity-60 ${
-            !currentStatus
-              ? "bg-[var(--color-accent-glow)] text-[var(--color-accent-light)] border-[var(--color-border-glow)]"
-              : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)]"
-          }`}
+          className={`chip disabled:opacity-60 ${!currentStatus ? "chip-active" : ""}`}
         >
           全部
-          <span className="tabular-nums opacity-70">{total}</span>
+          <span className="tabular-nums opacity-70 ml-1">{total}</span>
         </button>
 
-        {OPPORTUNITY_STATUSES.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => apply({ status: s })}
-            disabled={isPending}
-            aria-pressed={currentStatus === s}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] transition-all disabled:opacity-60 ${
-              currentStatus === s
-                ? "bg-[var(--color-accent-glow)] text-[var(--color-accent-light)] border-[var(--color-border-glow)]"
-                : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)]"
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_CLASS[s]}`} aria-hidden />
-            {s}
-            <span className="tabular-nums opacity-70">{statusCounts[s]}</span>
-          </button>
-        ))}
+        {OPPORTUNITY_STATUSES.map((s) => {
+          const active = currentStatus === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => apply({ status: s })}
+              disabled={isPending}
+              aria-pressed={active}
+              className={`chip disabled:opacity-60 ${active ? "chip-active" : ""}`}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full mr-1.5"
+                style={
+                  {
+                    background: active
+                      ? "var(--color-on-accent)"
+                      : `var(${STATUS_COLOR_VAR_NAME[s]})`,
+                  } as CSSProperties
+                }
+                aria-hidden
+              />
+              {s}
+              <span className="tabular-nums opacity-70 ml-1">{statusCounts[s]}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 分类筛选 + 清除 */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[13px] text-[var(--color-text-muted)] mr-1">分类</span>
+        <span className="text-[12px] text-[var(--color-text-muted)] mr-1">分类</span>
         <select
           value={currentCategory}
           onChange={(e) => apply({ category: e.target.value })}
           disabled={isPending}
           aria-label="分类筛选"
-          className="h-9 px-3 rounded-lg bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-border-glow)] max-w-[15rem]"
+          className="h-8 px-2.5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-border-glow)] max-w-[15rem]"
         >
           <option value="">全部分类</option>
           {categories.map((c) => (
@@ -123,7 +128,7 @@ export function OpportunityFilters({
             type="button"
             onClick={handleClear}
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)] transition-all disabled:opacity-60"
+            className="btn-secondary h-8 disabled:opacity-60"
           >
             <Eraser size={13} />
             清除筛选

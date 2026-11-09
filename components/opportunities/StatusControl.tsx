@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import {
   OPPORTUNITY_STATUSES,
-  STATUS_BADGE_CLASS,
-  STATUS_DOT_CLASS,
+  STATUS_COLOR_VAR_NAME,
   type OpportunityStatus,
 } from "@/lib/opportunities-shared";
 
@@ -67,13 +66,29 @@ export function StatusControl({ id, current }: StatusControlProps) {
               onClick={() => change(s)}
               disabled={pending}
               aria-pressed={active}
+              style={
+                active
+                  ? ({
+                      "--status-color": `var(${STATUS_COLOR_VAR_NAME[s]})`,
+                      color: "var(--status-color)",
+                      borderColor:
+                        "color-mix(in srgb, var(--status-color) 40%, transparent)",
+                      background:
+                        "color-mix(in srgb, var(--status-color) 14%, transparent)",
+                    } as CSSProperties)
+                  : undefined
+              }
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[13px] font-medium transition-all disabled:opacity-60 ${
                 active
-                  ? STATUS_BADGE_CLASS[s]
+                  ? ""
                   : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)]"
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_CLASS[s]}`} aria-hidden />
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: `var(${STATUS_COLOR_VAR_NAME[s]})` }}
+                aria-hidden
+              />
               {s}
             </button>
           );

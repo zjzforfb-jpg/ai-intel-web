@@ -17,19 +17,13 @@ export function isOpportunityStatus(v: unknown): v is OpportunityStatus {
   return typeof v === "string" && (OPPORTUNITY_STATUSES as readonly string[]).includes(v);
 }
 
-// 状态徽章配色：待研究=蓝 / 验证中=橙 / 已实施=绿 / 已放弃=灰
-export const STATUS_BADGE_CLASS: Record<OpportunityStatus, string> = {
-  待研究: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  验证中: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  已实施: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  已放弃: "bg-gray-500/15 text-gray-400 border-gray-500/30",
-};
-
-export const STATUS_DOT_CLASS: Record<OpportunityStatus, string> = {
-  待研究: "bg-blue-400",
-  验证中: "bg-orange-400",
-  已实施: "bg-emerald-400",
-  已放弃: "bg-gray-400",
+// 状态配色：走主题令牌（--color-status-*），暗黑 / 暖风各一套值。
+// 语义与选题状态同构：待研究=蓝 / 验证中=橙 / 已实施=绿 / 已放弃=灰。
+export const STATUS_COLOR_VAR_NAME: Record<OpportunityStatus, string> = {
+  待研究: "--color-status-todo",
+  验证中: "--color-status-picked",
+  已实施: "--color-status-made",
+  已放弃: "--color-status-dropped",
 };
 
 /** 列表分页大小 */
