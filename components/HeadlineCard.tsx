@@ -5,13 +5,36 @@ interface HeadlineCardProps {
   item: HeadlineItem;
 }
 
-/** 头条卡片：大标题 + 结构化字段，字号 15–18px */
+/** 字段行：宽屏标签左置定宽；小屏标签在上，避免标签列挤占正文宽度 */
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:gap-2.5 gap-0.5">
+      <span className="shrink-0 sm:w-[4.5rem] text-[12px] leading-6 text-[var(--color-text-muted)]">
+        {label}
+      </span>
+      <span className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed [overflow-wrap:anywhere] min-w-0">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 头条条目：大标题 + 结构化字段。
+ * 从「独立卡片」改为「条目 + 分隔线」——外层已由 SectionPanel 承载卡片，
+ * 条目再套一层边框会形成俄罗斯套娃。
+ */
 export function HeadlineCard({ item }: HeadlineCardProps) {
   return (
-    <article className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)]/60 p-4 lg:p-5 hover:border-[var(--color-border-glow)] transition-colors">
-      {/* 标题行 */}
-      <div className="flex items-start gap-3 mb-3">
-        <span className="shrink-0 w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 flex items-center justify-center text-sm font-bold">
+    <article className="border-b border-[var(--color-border-subtle)] last:border-b-0 pb-3 last:pb-0">
+      <div className="flex items-start gap-2.5 mb-2">
+        <span
+          className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[12px] font-bold tnum mt-0.5"
+          style={{
+            color: "var(--color-zone-headline)",
+            background: "color-mix(in srgb, var(--color-zone-headline) 12%, transparent)",
+          }}
+        >
           {item.index}
         </span>
         {item.link ? (
@@ -19,44 +42,23 @@ export function HeadlineCard({ item }: HeadlineCardProps) {
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[17px] lg:text-[18px] font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-link)] transition-colors flex-1 leading-snug"
+            className="text-[14px] font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-link)] transition-colors flex-1 leading-snug min-w-0 [overflow-wrap:anywhere]"
           >
             {item.title}
-            <ExternalLink size={14} className="inline-block ml-1.5 text-[var(--color-text-muted)]" />
+            <ExternalLink size={12} className="inline-block ml-1 align-baseline text-[var(--color-text-muted)]" />
           </a>
         ) : (
-          <h4 className="text-[17px] lg:text-[18px] font-semibold text-[var(--color-text-primary)] flex-1 leading-snug">
+          <h4 className="text-[14px] font-semibold text-[var(--color-text-primary)] flex-1 leading-snug min-w-0 [overflow-wrap:anywhere]">
             {item.title}
           </h4>
         )}
       </div>
 
-      {/* 字段 */}
-      <div className="space-y-2.5">
-        {item.source && (
-          <div className="flex gap-2.5">
-            <span className="shrink-0 w-[4.5rem] text-[13px] leading-6 text-[var(--color-text-muted)]">来源</span>
-            <span className="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">{item.source}</span>
-          </div>
-        )}
-        {item.coreFact && (
-          <div className="flex gap-2.5">
-            <span className="shrink-0 w-[4.5rem] text-[13px] leading-6 text-[var(--color-text-muted)]">核心事实</span>
-            <span className="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">{item.coreFact}</span>
-          </div>
-        )}
-        {item.deepAnalysis && (
-          <div className="flex gap-2.5">
-            <span className="shrink-0 w-[4.5rem] text-[13px] leading-6 text-[var(--color-text-muted)]">深度解读</span>
-            <span className="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">{item.deepAnalysis}</span>
-          </div>
-        )}
-        {item.impact && (
-          <div className="flex gap-2.5">
-            <span className="shrink-0 w-[4.5rem] text-[13px] leading-6 text-[var(--color-text-muted)]">行业影响</span>
-            <span className="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">{item.impact}</span>
-          </div>
-        )}
+      <div className="flex flex-col gap-1.5 pl-[34px]">
+        {item.source && <Field label="来源" value={item.source} />}
+        {item.coreFact && <Field label="核心事实" value={item.coreFact} />}
+        {item.deepAnalysis && <Field label="深度解读" value={item.deepAnalysis} />}
+        {item.impact && <Field label="行业影响" value={item.impact} />}
       </div>
     </article>
   );

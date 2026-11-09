@@ -1,42 +1,63 @@
 import type { ReactNode } from "react";
 
+export type SectionZone = "headline" | "trend" | "opportunity";
+
 interface SectionPanelProps {
   title: string;
   count: number | null;
-  /** 板块专属色标（橙=头条 / 紫=趋势 / 绿=机会） */
-  dotColor: string;
+  /** 板块语义色（走主题令牌 --color-zone-*） */
+  zone: SectionZone;
   icon: ReactNode;
   children: ReactNode;
 }
 
+/** 板块 → CSS 变量名 */
+const ZONE_VAR: Record<SectionZone, string> = {
+  headline: "--color-zone-headline",
+  trend: "--color-zone-trend",
+  opportunity: "--color-zone-opportunity",
+};
+
 /**
- * 首页三大板块容器：固定头部 + 可滚动内容区。
- * 桌面端与相邻板块等高、占满剩余屏高，内容超出时内部滚动。
+ * 首页三大板块容器。
+ *
+ * 与旧版的差别：旧版在桌面端把每个面板钉成「占满屏高 + 内部滚动」，
+ * 结果是三层嵌套滚动（页面 / 面板 / 面板内列表），滚轮体验割裂，
+ * 且窗口一矮内容就被裁。这里改回自然高度、整页滚动，
+ * 由栅格在同一行内自行对齐。
  */
-export function SectionPanel({ title, count, dotColor, icon, children }: SectionPanelProps) {
+export function SectionPanel({ title, count, zone, icon, children }: SectionPanelProps) {
+  const colorVar = `var(${ZONE_VAR[zone]})`;
+
   return (
-    <section className="glass-card flex flex-col min-h-0 overflow-hidden">
-      <header className="shrink-0 flex items-center gap-2.5 px-5 py-4 border-b border-[var(--color-border-subtle)]">
+    <section
+      className="card-l flex flex-col min-w-0"
+      style={{
+        borderTopColor: colorVar,
+        borderTopWidth: 3,
+        borderTopLeftRadius: 12,
+        borderTopRightRadius: 12,
+      }}
+    >
+      <header className="flex items-center gap-2 mb-4">
         <span
-          className="w-2.5 h-2.5 rounded-[3px] shrink-0"
-          style={{ background: dotColor }}
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{
+            color: colorVar,
+            background: `color-mix(in srgb, ${colorVar} 12%, transparent)`,
+          }}
           aria-hidden
-        />
-        <span className="shrink-0" style={{ color: dotColor }}>
+        >
           {icon}
         </span>
-        <h2 className="text-[20px] lg:text-[22px] font-bold text-[var(--color-text-primary)]">
+        <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)] min-w-0">
           {title}
         </h2>
         {count !== null && (
-          <span className="ml-1 px-2.5 py-0.5 rounded-full text-xs tabular-nums bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)]">
-            {count} 条
-          </span>
+          <span className="ml-auto shrink-0 badge tnum">{count} 条</span>
         )}
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-5 flex flex-col gap-3">
-        {children}
-      </div>
+      <div className="flex flex-col gap-3 min-w-0">{children}</div>
     </section>
   );
 }
