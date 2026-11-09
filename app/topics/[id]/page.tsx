@@ -21,6 +21,7 @@ import { KeywordChips } from "@/components/topics/KeywordChips";
 import { DeleteTopicButton } from "@/components/topics/DeleteTopicButton";
 import { SearchSnippet } from "@/components/history/SearchSnippet";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -56,48 +57,40 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
   const maxHits = stats.reduce((m, s) => Math.max(m, s.hits), 0);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      {/* 页头 */}
-      <div>
-        <Link
-          href="/topics"
-          className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-        >
-          <ArrowLeft size={14} />
-          返回专题列表
-        </Link>
-        <div className="flex items-start justify-between gap-4 mt-2 flex-wrap">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] break-words">
-                {topic.name}
-              </h1>
-              <CategoryBadge category={topic.category} />
-            </div>
-            <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap mt-1.5">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarClock size={13} />
-                创建于 {formatDateTime(topic.created_at)}
-              </span>
-              <span>更新于 {formatDateTime(topic.updated_at)}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2" data-print-hide>
+    <PageBody>
+      <PageHeader
+        title={topic.name}
+        subtitle={
+          <>
+            <CategoryBadge category={topic.category} />
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarClock size={13} />
+              创建于 {formatDateTime(topic.created_at)}
+            </span>
+            <span>更新于 {formatDateTime(topic.updated_at)}</span>
             <Link
-              href={`/topics/${topic.id}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] px-3.5 py-2 text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] transition-all"
+              href="/topics"
+              className="inline-flex items-center gap-1 hover:text-[var(--color-text-secondary)] transition-colors"
             >
-              <Pencil size={15} />
+              <ArrowLeft size={12} />
+              返回专题列表
+            </Link>
+          </>
+        }
+        actions={
+          <div className="flex items-center gap-2" data-print-hide>
+            <Link href={`/topics/${topic.id}/edit`} className="btn-secondary">
+              <Pencil size={14} />
               编辑
             </Link>
             <DeleteTopicButton topicId={topic.id} topicName={topic.name} />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* 描述 */}
       {topic.description && (
-        <div className="glass-card p-5">
+        <div className="card-l">
           <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)] mb-2">专题描述</h2>
           <p className="text-[13px] leading-relaxed text-[var(--color-text-secondary)] break-words whitespace-pre-wrap">
             {topic.description}
@@ -106,10 +99,10 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
       )}
 
       {/* 关键词与出现频次 */}
-      <div className="glass-card p-5 flex flex-col gap-4">
+      <div className="card-l flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-            <Hash size={16} className="text-[var(--color-accent-light)]" />
+          <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <Hash size={15} style={{ color: "var(--color-accent-light)" }} />
             关键词与出现频次
           </h2>
           <span className="text-[13px] text-[var(--color-text-muted)]">
@@ -128,7 +121,7 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
             </p>
             <Link
               href={`/topics/${topic.id}/edit`}
-              className="inline-flex items-center gap-1.5 mt-3 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] px-3.5 py-2 text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] transition-all"
+              className="btn-secondary mt-3"
             >
               <Pencil size={14} />
               去添加关键词
@@ -145,8 +138,11 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
                   </span>
                   <div className="flex-1 min-w-0 h-2 rounded-full bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-400"
-                      style={{ width: `${maxHits > 0 ? Math.max((s.hits / maxHits) * 100, s.hits > 0 ? 4 : 0) : 0}%` }}
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${maxHits > 0 ? Math.max((s.hits / maxHits) * 100, s.hits > 0 ? 4 : 0) : 0}%`,
+                        background: "var(--color-accent)",
+                      }}
                     />
                   </div>
                   <span className="shrink-0 w-20 text-right text-[13px] text-[var(--color-text-muted)] tabular-nums">
@@ -163,10 +159,10 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
       </div>
 
       {/* 相关日报 */}
-      <div className="glass-card p-5 flex flex-col gap-4">
+      <div className="card-l flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-            <FileText size={16} className="text-[var(--color-accent-light)]" />
+          <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <FileText size={15} style={{ color: "var(--color-accent-light)" }} />
             相关日报
           </h2>
           {topic.keywords.length > 0 && (
@@ -186,7 +182,7 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
             添加关键词后，这里会列出同时命中全部关键词的历史日报。
           </p>
         ) : related.items.length > 0 ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {related.items.map((report) => {
               const matched = topic!.keywords.filter(
                 (k) => report.title_hits.includes(k) || report.body_hits.includes(k)
@@ -196,7 +192,7 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
                 <Link
                   key={report.id}
                   href={`/report/${report.report_date}`}
-                  className="block rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-4 sm:p-5 group hover:border-[var(--color-border-glow)] transition-colors min-w-0"
+                  className="group block border-b border-[var(--color-border-subtle)] last:border-b-0 py-3.5 px-3 -mx-3 rounded-lg transition-colors hover:bg-[var(--color-bg-card-hover)] min-w-0"
                 >
                   <div className="flex items-start gap-4">
                     {/* 日期块 */}
@@ -234,7 +230,11 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
                           </span>
                         )}
                         {report.status && (
-                          <span className={report.status === "success" ? "text-green-400" : "text-amber-400"}>
+                          <span
+                            className={`badge ${
+                              report.status === "success" ? "badge-success" : "badge-warning"
+                            }`}
+                          >
                             {report.status === "success" ? "已生成" : report.status}
                           </span>
                         )}
@@ -251,8 +251,8 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
             })}
           </div>
         ) : (
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] p-8 text-center">
-            <Radar size={26} className="text-[var(--color-text-muted)] mx-auto mb-3" />
+          <div className="rounded-lg border border-dashed border-[var(--color-border-subtle)] p-8 text-center">
+            <Radar size={24} className="text-[var(--color-text-muted)] mx-auto mb-2.5" />
             <p className="text-[13px] text-[var(--color-text-secondary)] mb-1">
               暂无相关日报：当前关键词组合还没有同时命中任何一篇日报
             </p>
@@ -262,6 +262,6 @@ export default async function TopicDetailPage({ params }: { params: Params }) {
           </div>
         )}
       </div>
-    </div>
+    </PageBody>
   );
 }

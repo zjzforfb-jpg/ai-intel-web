@@ -7,7 +7,8 @@ import {
 } from "@/lib/content-projects";
 import { PROJECT_STATUSES, type ProjectStatus, isProjectStatus } from "@/lib/content-projects-shared";
 import { DbErrorState } from "@/components/DbErrorState";
-import { ProjectCard } from "@/components/content/ProjectCard";
+import { ProjectListRow } from "@/components/content/ProjectListRow";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 import { dbHint } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -69,46 +70,42 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      <div>
-        <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mb-1">
-          内容中心
-        </h1>
-        <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5">
-            <Film size={13} />
-            共{" "}
-            <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
-              {totalAll}
-            </span>{" "}
-            个内容项目
-          </span>
-          {hasFilter && (
-            <span>
-              当前筛选命中{" "}
+    <PageBody>
+      <PageHeader
+        title="内容中心"
+        subtitle={
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <Film size={13} />
+              共
               <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
-                {result.total}
-              </span>{" "}
-              个
+                {totalAll}
+              </span>
+              个内容项目
             </span>
-          )}
-          <span>从选题出发策划、导出到生产流水线、再回读结果</span>
-        </p>
-      </div>
+            {hasFilter && (
+              <span>
+                当前筛选命中
+                <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
+                  {result.total}
+                </span>
+                个
+              </span>
+            )}
+            <span>从选题出发策划、导出到生产流水线、再回读结果</span>
+          </>
+        }
+      />
 
       {/* 状态筛选：显示真实数量，不做假数据 */}
       <div className="flex items-center gap-2 flex-wrap">
         <Link
           href={filterHref("")}
           aria-pressed={!hasFilter}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[13px] font-medium transition-all ${
-            !hasFilter
-              ? "bg-[var(--color-accent)] text-white border-transparent"
-              : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)]"
-          }`}
+          className={`chip ${!hasFilter ? "chip-active" : ""}`}
         >
           全部
-          <span className="tabular-nums opacity-70">{totalAll}</span>
+          <span className="tabular-nums opacity-70 ml-1">{totalAll}</span>
         </Link>
         {PROJECT_STATUSES.map((s) => {
           const active = s === status;
@@ -118,14 +115,10 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
               key={s}
               href={filterHref(s)}
               aria-pressed={active}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[13px] font-medium transition-all ${
-                active
-                  ? "bg-[var(--color-accent)] text-white border-transparent"
-                  : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)]"
-              }`}
+              className={`chip ${active ? "chip-active" : ""}`}
             >
               {s}
-              <span className="tabular-nums opacity-70">{n}</span>
+              <span className="tabular-nums opacity-70 ml-1">{n}</span>
             </Link>
           );
         })}
@@ -133,9 +126,9 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
 
       {result.items.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="card-l flex flex-col">
             {result.items.map((p) => (
-              <ProjectCard key={p.id} project={p} />
+              <ProjectListRow key={p.id} project={p} />
             ))}
           </div>
 
@@ -144,7 +137,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
               {page > 1 && (
                 <Link
                   href={pageHref(page - 1)}
-                  className="inline-flex items-center h-8 px-3 rounded-lg border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)]"
+                  className="btn-secondary h-8"
                 >
                   上一页
                 </Link>
@@ -155,7 +148,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
               {page < totalPages && (
                 <Link
                   href={pageHref(page + 1)}
-                  className="inline-flex items-center h-8 px-3 rounded-lg border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)]"
+                  className="btn-secondary h-8"
                 >
                   下一页
                 </Link>
@@ -164,23 +157,20 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
           )}
         </>
       ) : hasFilter ? (
-        <div className="glass-card p-10 text-center">
-          <SearchX size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-          <p className="text-base text-[var(--color-text-secondary)] mb-1">
+        <div className="empty-state">
+          <SearchX size={26} className="text-[var(--color-text-muted)]" />
+          <p className="text-[14px] text-[var(--color-text-secondary)]">
             没有处于「{status}」的内容项目
           </p>
-          <p className="text-[13px] text-[var(--color-text-muted)] mb-5">换个状态看看，或查看全部项目。</p>
-          <Link
-            href="/content"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)] hover:text-[var(--color-text-primary)] transition-all"
-          >
+          <p className="text-[13px] text-[var(--color-text-muted)]">换个状态看看，或查看全部项目。</p>
+          <Link href="/content" className="btn-secondary mt-1">
             查看全部
           </Link>
         </div>
       ) : (
-        <div className="glass-card p-10 text-center">
-          <FolderOpen size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-          <p className="text-base text-[var(--color-text-secondary)] mb-1">还没有内容项目</p>
+        <div className="empty-state">
+          <FolderOpen size={26} className="text-[var(--color-text-muted)]" />
+          <p className="text-[14px] text-[var(--color-text-secondary)]">还没有内容项目</p>
           <p className="text-[13px] text-[var(--color-text-muted)] leading-relaxed">
             内容项目从选题创建：到
             <Link href="/ideas" className="text-[var(--color-link)] hover:underline mx-1">
@@ -190,6 +180,6 @@ export default async function ContentPage({ searchParams }: { searchParams: Sear
           </p>
         </div>
       )}
-    </div>
+    </PageBody>
   );
 }

@@ -1,6 +1,7 @@
 import { getMonitorOverview, listCheckRuns } from "@/lib/monitor/store";
 import type { CheckStatus } from "@/lib/monitor/types";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 import { OverviewCards } from "@/components/monitor/OverviewCards";
 import { RunCard } from "@/components/monitor/RunCard";
 import { RunFilter } from "@/components/monitor/RunFilter";
@@ -65,17 +66,18 @@ export default async function MonitorPage({ searchParams }: { searchParams: Sear
   if (status) baseQuery.status = status;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      {/* 页头 */}
-      <div>
-        <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mb-1 flex items-center gap-2.5">
-          <Activity size={22} className="text-[var(--color-accent-light)]" />
-          系统监控
-        </h1>
-        <p className="text-[13px] text-[var(--color-text-muted)]">
-          日报数据质量检查的运行状态与历史记录
-        </p>
-      </div>
+    <PageBody>
+      <PageHeader
+        title="系统监控"
+        subtitle={
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <Activity size={13} />
+              日报数据质量检查的运行状态与历史记录
+            </span>
+          </>
+        }
+      />
 
       {/* 运行状态总览 */}
       <OverviewCards overview={overview} />
@@ -84,7 +86,7 @@ export default async function MonitorPage({ searchParams }: { searchParams: Sear
       <RunFilter status={status} />
 
       {/* 结果摘要 */}
-      <div className="text-[13px] text-[var(--color-text-muted)]">
+      <div className="text-[12px] text-[var(--color-text-muted)]">
         {status ? `筛选「${status}」` : "全部记录"}：共{" "}
         <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">{total}</span>{" "}
         条（第 {page} / {totalPages} 页）
@@ -92,30 +94,30 @@ export default async function MonitorPage({ searchParams }: { searchParams: Sear
 
       {/* 检查记录列表 */}
       {items.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="card-l flex flex-col gap-3">
           {items.map((run) => (
             <RunCard key={run.id} run={run} />
           ))}
         </div>
       ) : (
-        <div className="glass-card p-10 text-center">
+        <div className="empty-state">
           {page > totalPages ? (
             <>
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">当前页码超出范围</p>
-              <p className="text-[13px] text-[var(--color-text-muted)] mb-5">
+              <p className="text-[14px] text-[var(--color-text-secondary)]">当前页码超出范围</p>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
                 共 {totalPages} 页，你访问的是第 {page} 页。
               </p>
               <Link
                 href={`/monitor${Object.keys(baseQuery).length ? `?${new URLSearchParams(baseQuery).toString()}` : ""}`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white text-sm hover:opacity-90 transition-opacity"
+                className="btn-primary mt-1"
               >
                 回到第 1 页
               </Link>
             </>
           ) : status ? (
             <>
-              <ClipboardList size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">
+              <ClipboardList size={26} className="text-[var(--color-text-muted)]" />
+              <p className="text-[14px] text-[var(--color-text-secondary)]">
                 没有「{status}」结论的检查记录
               </p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
@@ -124,13 +126,13 @@ export default async function MonitorPage({ searchParams }: { searchParams: Sear
             </>
           ) : (
             <>
-              <ClipboardList size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">还没有检查记录</p>
-              <p className="text-[13px] text-[var(--color-text-muted)] mb-4">
+              <ClipboardList size={26} className="text-[var(--color-text-muted)]" />
+              <p className="text-[14px] text-[var(--color-text-secondary)]">还没有检查记录</p>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
                 系统执行数据质量检查后，记录会自动出现在这里。
               </p>
-              <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)] text-[13px] text-[var(--color-text-secondary)]">
-                <TerminalSquare size={14} className="text-[var(--color-accent-light)]" />
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-bg-card-hover)] border border-[var(--color-border-subtle)] text-[12px] text-[var(--color-text-secondary)] mt-1">
+                <TerminalSquare size={13} style={{ color: "var(--color-accent-light)" }} />
                 运行 <code className="font-mono text-[var(--color-accent-light)]">npm run monitor:check</code> 触发检查
               </div>
             </>
@@ -140,6 +142,6 @@ export default async function MonitorPage({ searchParams }: { searchParams: Sear
 
       {/* 分页（保留筛选条件） */}
       <RunPagination page={page} totalPages={totalPages} baseQuery={baseQuery} />
-    </div>
+    </PageBody>
   );
 }

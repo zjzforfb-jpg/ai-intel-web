@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getTopicById } from "@/lib/topics";
 import { TopicForm } from "@/components/topics/TopicForm";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -28,32 +29,29 @@ export default async function EditTopicPage({ params }: { params: Params }) {
   if (!topic) notFound();
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      <div>
-        <Link
-          href={`/topics/${topic.id}`}
-          className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-        >
-          <ArrowLeft size={14} />
-          返回专题详情
-        </Link>
-        <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mt-2 mb-1">
-          编辑专题
-        </h1>
-        <p className="text-[13px] text-[var(--color-text-muted)] break-words">
-          正在编辑「{topic.name}」
-        </p>
-      </div>
-      <TopicForm
-        mode="edit"
-        topicId={topic.id}
-        initial={{
-          name: topic.name,
-          category: topic.category,
-          keywords: topic.keywords,
-          description: topic.description,
-        }}
+    <PageBody>
+      <PageHeader
+        title="编辑专题"
+        subtitle={<>正在编辑「{topic.name}」</>}
+        actions={
+          <Link href={`/topics/${topic.id}`} className="btn-secondary">
+            <ArrowLeft size={14} />
+            返回专题详情
+          </Link>
+        }
       />
-    </div>
+      <div className="w-full max-w-3xl">
+        <TopicForm
+          mode="edit"
+          topicId={topic.id}
+          initial={{
+            name: topic.name,
+            category: topic.category,
+            keywords: topic.keywords,
+            description: topic.description,
+          }}
+        />
+      </div>
+    </PageBody>
   );
 }

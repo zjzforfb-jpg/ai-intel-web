@@ -4,6 +4,7 @@ import { listTopics, getCategoryCounts, isTopicCategory, TOPIC_CATEGORIES } from
 import type { TopicCategory } from "@/lib/db-write";
 import { TopicCard } from "@/components/topics/TopicCard";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -36,57 +37,45 @@ export default async function TopicsPage({ searchParams }: { searchParams: Searc
   const totalCount = TOPIC_CATEGORIES.reduce((sum, c) => sum + counts![c], 0);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      {/* 页头 */}
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mb-1">
-            专题追踪
-          </h1>
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap">
+    <PageBody>
+      <PageHeader
+        title="专题追踪"
+        subtitle={
+          <>
             <span className="inline-flex items-center gap-1.5">
               <Tags size={13} />
-              共{" "}
+              共
               <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
                 {totalCount}
-              </span>{" "}
+              </span>
               个专题
             </span>
             <span>用关键词把相关历史日报聚合成一条持续追踪线</span>
-          </p>
-        </div>
-        <Link
-          href="/topics/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-[13px] text-white hover:opacity-90 transition-opacity"
-        >
-          <Plus size={15} />
-          创建专题
-        </Link>
-      </div>
+          </>
+        }
+        actions={
+          <Link href="/topics/new" className="btn-primary">
+            <Plus size={14} />
+            创建专题
+          </Link>
+        }
+      />
 
       {/* 分类筛选 */}
       <div className="flex items-center gap-2 flex-wrap">
         <Link
           href="/topics"
-          className={`rounded-lg border px-3.5 py-1.5 text-[13px] transition-all ${
-            category === null
-              ? "border-[var(--color-accent)] bg-[var(--color-accent-glow)] text-[var(--color-accent-light)]"
-              : "border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)]"
-          }`}
+          className={`chip ${category === null ? "chip-active" : ""}`}
         >
-          全部 <span className="tabular-nums">{totalCount}</span>
+          全部 <span className="tabular-nums opacity-70 ml-1">{totalCount}</span>
         </Link>
         {TOPIC_CATEGORIES.map((c) => (
           <Link
             key={c}
             href={`/topics?category=${encodeURIComponent(c)}`}
-            className={`rounded-lg border px-3.5 py-1.5 text-[13px] transition-all ${
-              category === c
-                ? "border-[var(--color-accent)] bg-[var(--color-accent-glow)] text-[var(--color-accent-light)]"
-                : "border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-glow)]"
-            }`}
+            className={`chip ${category === c ? "chip-active" : ""}`}
           >
-            {c} <span className="tabular-nums">{counts[c]}</span>
+            {c} <span className="tabular-nums opacity-70 ml-1">{counts[c]}</span>
           </Link>
         ))}
       </div>
@@ -99,11 +88,11 @@ export default async function TopicsPage({ searchParams }: { searchParams: Searc
           ))}
         </div>
       ) : (
-        <div className="glass-card p-10 text-center">
-          <Layers size={28} className="text-[var(--color-text-muted)] mx-auto mb-3" />
+        <div className="empty-state">
+          <Layers size={26} className="text-[var(--color-text-muted)]" />
           {category !== null ? (
             <>
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">
+              <p className="text-[14px] text-[var(--color-text-secondary)]">
                 「{category}」分类下还没有专题
               </p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
@@ -112,21 +101,18 @@ export default async function TopicsPage({ searchParams }: { searchParams: Searc
             </>
           ) : (
             <>
-              <p className="text-base text-[var(--color-text-secondary)] mb-1">还没有专题</p>
+              <p className="text-[14px] text-[var(--color-text-secondary)]">还没有专题</p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
                 点击右上角「创建专题」，用关键词把相关历史日报聚合成一条追踪线。
               </p>
             </>
           )}
-          <Link
-            href="/topics/new"
-            className="inline-flex items-center gap-2 mt-5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-[13px] text-white hover:opacity-90 transition-opacity"
-          >
-            <Plus size={15} />
+          <Link href="/topics/new" className="btn-primary mt-1">
+            <Plus size={14} />
             创建专题
           </Link>
         </div>
       )}
-    </div>
+    </PageBody>
   );
 }
