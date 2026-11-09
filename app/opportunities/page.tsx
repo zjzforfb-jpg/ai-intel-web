@@ -12,6 +12,12 @@ import { OpportunityFilters } from "@/components/opportunities/OpportunityFilter
 import { OpportunityListRow } from "@/components/opportunities/OpportunityListRow";
 import { OpportunityPagination } from "@/components/opportunities/OpportunityPagination";
 import { dbHint } from "@/lib/config";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "商业机会 | 每日 AI 情报内参",
+  description: "从日报归档的商业机会，跟踪验证与实施进度。",
+};
 
 export const dynamic = "force-dynamic";
 

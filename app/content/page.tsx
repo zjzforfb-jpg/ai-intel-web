@@ -10,6 +10,12 @@ import { DbErrorState } from "@/components/DbErrorState";
 import { ProjectListRow } from "@/components/content/ProjectListRow";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 import { dbHint } from "@/lib/config";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "内容中心 | 每日 AI 情报内参",
+  description: "从选题出发策划、导出到生产流水线、再回读结果。",
+};
 
 export const dynamic = "force-dynamic";
 

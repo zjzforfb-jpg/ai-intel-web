@@ -9,6 +9,12 @@ import { RunPagination } from "@/components/monitor/RunPagination";
 import { isCheckStatus, toRunView } from "@/components/monitor/run-utils";
 import Link from "next/link";
 import { Activity, ClipboardList, TerminalSquare } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "系统监控 | 每日 AI 情报内参",
+  description: "日报数据质量检查的运行状态与历史记录。",
+};
 
 export const dynamic = "force-dynamic";
 

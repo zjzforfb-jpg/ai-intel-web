@@ -9,6 +9,12 @@ import { StatusBadge } from "@/components/ideas/StatusBadge";
 import { CreateIdeaSection } from "./CreateIdeaSection";
 import { IdeaListRow } from "./IdeaListRow";
 import { dbHint } from "@/lib/config";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "短视频选题 | 每日 AI 情报内参",
+  description: "从每日日报自动提取的短视频选题，含切入角度、素材来源与参考画面。",
+};
 
 export const dynamic = "force-dynamic";
 

@@ -124,29 +124,18 @@ body {
   background: var(--color-accent);
 }
 
-/* 玻璃质感卡片 */
+/* 旧卡片类：收敛为 card-l 的等价实现（12px 圆角 + 实底 + 细描边）。
+   早期是 backdrop-filter 玻璃质感，但 blur(12px) 在浅色米纸底上几乎不可见，
+   却要付合成开销；且与 card-* 原语并存会让「所有卡片长得差不多但又不是同一套」
+   反复出现。这里直接对齐，历史类名不再产生视觉差异，S3 可逐个替换后删除。 */
 .glass-card {
-  background: color-mix(in srgb, var(--color-bg-card) 78%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--color-bg-card);
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
   transition: border-color 0.2s, transform 0.15s;
 }
 .glass-card:hover {
   border-color: var(--color-border-glow);
-}
-
-/* 渐变文字 */
-.gradient-text {
-  background: linear-gradient(135deg, #818cf8, #6366f1, #60a5fa);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* 发光效果 */
-.glow-accent {
-  box-shadow: 0 0 20px var(--color-accent-glow);
 }
 
 /* ── 设计系统原语（阶段五地基，零页面改动） ─────────────────────────
@@ -483,7 +472,12 @@ body {
     max-width: none !important;
   }
 
-  .glass-card {
+  .glass-card,
+  .card-l,
+  .card-m,
+  .card-s,
+  .focus-zone,
+  .focus-zone-success {
     background: #fff !important;
     border: 1px solid #ddd !important;
     backdrop-filter: none !important;
@@ -496,7 +490,7 @@ body {
     color: #111 !important;
   }
 
-  .prose-report a, .glass-card a {
+  .prose-report a, .glass-card a, .card-l a, .card-m a, .card-s a {
     color: #1d4ed8 !important;
     text-decoration: underline;
   }

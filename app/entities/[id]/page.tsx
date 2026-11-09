@@ -17,6 +17,7 @@ import { EntityTypeBadge } from "@/components/entities/EntityTypeBadge";
 import { DataSufficiencyNotice } from "@/components/entities/DataSufficiencyNotice";
 import { MentionTimeline } from "@/components/entities/MentionTimeline";
 import { dbHint } from "@/lib/config";
+import type { Metadata } from "next";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 
 // 实体详情是纯阅读页（无写操作、无写后回显）。
@@ -42,6 +43,25 @@ function SectionCard({ title, children }: { title: string; children: React.React
       {children}
     </section>
   );
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  let name: string | null = null;
+  try {
+    const detail = await getEntityDetail(Number(id));
+    name = detail?.entity.name ?? null;
+  } catch {
+    // 元信息查询失败不影响页面本身
+  }
+  return {
+    title: name ? `${name} | 实体追踪` : "实体详情 | 每日 AI 情报内参",
+    description: "AI 行业实体的历史提及、关联选题与商业机会。",
+  };
 }
 
 export default async function EntityDetailPage({ params }: PageProps) {

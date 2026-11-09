@@ -1,8 +1,14 @@
 // 纯静态文案页，无任何数据依赖：缓存一天，改动后由构建重新生成。
+export const metadata: Metadata = {
+  title: "关于平台 | 每日 AI 情报内参",
+  description: "自托管的 AI 行业情报阅读平台：架构、链路与数据安全约定。",
+};
+
 export const revalidate = 3600;
 
 import { Database, Server, ShieldCheck, Workflow } from "lucide-react";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
 
 /** 链路四步（T9 说明页的编号步骤条） */
 const PIPELINE = [

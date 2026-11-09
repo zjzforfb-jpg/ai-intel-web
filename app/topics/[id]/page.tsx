@@ -22,10 +22,26 @@ import { DeleteTopicButton } from "@/components/topics/DeleteTopicButton";
 import { SearchSnippet } from "@/components/history/SearchSnippet";
 import { DbErrorState } from "@/components/DbErrorState";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  let name: string | null = null;
+  try {
+    const topic = await getTopicById(Number(id));
+    name = topic?.name ?? null;
+  } catch {
+    // 元信息查询失败不影响页面本身
+  }
+  return {
+    title: name ? `${name} | 专题追踪` : "专题详情 | 每日 AI 情报内参",
+    description: "专题的关键词命中统计与相关历史日报。",
+  };
+}
 
 export default async function TopicDetailPage({ params }: { params: Params }) {
   const { id: idRaw } = await params;

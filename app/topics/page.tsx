@@ -5,6 +5,12 @@ import type { TopicCategory } from "@/lib/db-write";
 import { TopicCard } from "@/components/topics/TopicCard";
 import { DbErrorState } from "@/components/DbErrorState";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "专题追踪 | 每日 AI 情报内参",
+  description: "用关键词把相关历史日报聚合成持续追踪线。",
+};
 
 export const dynamic = "force-dynamic";
 

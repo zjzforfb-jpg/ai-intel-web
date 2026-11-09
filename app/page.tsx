@@ -10,10 +10,16 @@ import { DbErrorState } from "@/components/DbErrorState";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 import { Flame, TrendingUp, Target, BookOpen, ArrowRight, Inbox } from "lucide-react";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 // 首页只读、无写后回显，日报一天只变一次（n8n 08:30 出报）。
 // 缓存 5 分钟：足够快，且「今日报告」标签最多滞后 5 分钟，可接受。
 // 注意：不能用 revalidateTag —— 数据是 n8n 直接写库的，Next 侧收不到失效信号。
+export const metadata: Metadata = {
+  title: "今日情报 | 每日 AI 情报内参",
+  description: "当天 AI 行业情报总览：核心判断、重点头条、趋势与商业机会。",
+};
+
 export const revalidate = 300;
 
 export default async function HomePage() {

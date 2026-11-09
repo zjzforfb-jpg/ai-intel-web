@@ -8,6 +8,12 @@ import { DbErrorState } from "@/components/DbErrorState";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 import Link from "next/link";
 import { FileText, ArrowRight, SearchX, CalendarDays, Database } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "历史档案馆 | 每日 AI 情报内参",
+  description: "按关键词与日期检索全部历史日报。",
+};
 
 export const dynamic = "force-dynamic";
 

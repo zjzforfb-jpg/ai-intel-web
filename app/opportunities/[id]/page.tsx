@@ -22,6 +22,7 @@ import { EditOpportunitySection } from "@/components/opportunities/EditOpportuni
 import { DeleteOpportunityButton } from "@/components/opportunities/DeleteOpportunityButton";
 import { dbHint } from "@/lib/config";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,23 @@ function TextBlock({ text, placeholder }: { text: string | null; placeholder: st
       {text}
     </p>
   );
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  let title: string | null = null;
+  try {
+    const row = await getOpportunity(Number(id));
+    title = row?.title ?? null;
+  } catch {
+    // 元信息查询失败不影响页面本身
+  }
+  return {
+    title: title ? `${title} | 商业机会` : "机会详情 | 每日 AI 情报内参",
+    description: "商业机会的详细档案、状态流转与来源日报。",
+  };
 }
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {

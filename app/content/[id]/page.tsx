@@ -20,6 +20,7 @@ import { SourcePanel } from "@/components/content/SourcePanel";
 import { ProductionTimeline } from "@/components/content/ProductionTimeline";
 import { dbHint } from "@/lib/config";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,21 @@ function JsonPreview({ label, value }: { label: string; value: unknown }) {
       </pre>
     </details>
   );
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  let title: string | null = null;
+  try {
+    const project = await getContentProject(Number(id));
+    title = project?.title ?? null;
+  } catch {
+    // 元信息查询失败不影响页面本身
+  }
+  return {
+    title: title ? `${title} | 内容中心` : "内容项目 | 每日 AI 情报内参",
+    description: "内容项目的策划、导出与生产回读。",
+  };
 }
 
 export default async function ContentDetailPage({ params }: PageProps) {

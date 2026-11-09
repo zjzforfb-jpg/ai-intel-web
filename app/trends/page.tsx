@@ -25,6 +25,12 @@ import { KeywordList } from "@/components/trends/KeywordList";
 import { PersistentHotspots } from "@/components/trends/PersistentHotspots";
 import { StatCards } from "@/components/trends/StatCards";
 import { RangeFilter } from "@/components/trends/RangeFilter";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "趋势观察 | 每日 AI 情报内参",
+  description: "热点关键词频次统计、产出节奏与持续热点追踪。",
+};
 
 export const dynamic = "force-dynamic";
 

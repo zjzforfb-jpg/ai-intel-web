@@ -5,10 +5,30 @@ import { getTopicById } from "@/lib/topics";
 import { TopicForm } from "@/components/topics/TopicForm";
 import { DbErrorState } from "@/components/DbErrorState";
 import { PageHeader, PageBody } from "@/components/PageHeader";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params;
+}): Promise<Metadata> {
+  const { id } = await params;
+  let name: string | null = null;
+  try {
+    const topic = await getTopicById(Number(id));
+    name = topic?.name ?? null;
+  } catch {
+    // 元信息查询失败不影响页面本身
+  }
+  return {
+    title: name ? `编辑「${name}」| 专题追踪` : "编辑专题 | 每日 AI 情报内参",
+    description: "修改专题名称、分类、关键词与描述。",
+  };
+}
 
 export default async function EditTopicPage({ params }: { params: Params }) {
   const { id: idRaw } = await params;

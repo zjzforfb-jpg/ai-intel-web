@@ -2,6 +2,7 @@ import { getReportByDate, getAdjacentReports } from "@/lib/db";
 import type { ReportRow, AdjacentReport } from "@/lib/db";
 import { formatDateTime, formatDate } from "@/lib/format";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ReportView } from "@/components/ReportView";
 import { DbErrorState } from "@/components/DbErrorState";
 
@@ -20,6 +21,16 @@ export function generateStaticParams(): Array<{ date: string }> {
 
 interface PageProps {
   params: Promise<{ date: string }>;
+}
+
+/** 用日期做标题，不额外查库（保证 metadata 不引入新的数据库往返） */
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { date } = await params;
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date);
+  return {
+    title: valid ? `${date} 日报 | 每日 AI 情报内参` : "日报 | 每日 AI 情报内参",
+    description: "AI 行业每日情报日报：核心判断、重点头条、趋势与商业机会。",
+  };
 }
 
 export default async function ReportPage({ params }: PageProps) {

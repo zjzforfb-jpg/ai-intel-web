@@ -7,6 +7,12 @@ import { EntityFilters } from "@/components/entities/EntityFilters";
 import { EntityTable } from "@/components/entities/EntityTable";
 import { EntityPagination } from "@/components/entities/EntityPagination";
 import { dbHint } from "@/lib/config";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "实体追踪 | 每日 AI 情报内参",
+  description: "受控词典抽取的 AI 行业实体及其历史提及。",
+};
 
 export const dynamic = "force-dynamic";
 
