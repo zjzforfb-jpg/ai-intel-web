@@ -21,6 +21,7 @@ import { StatusControl } from "@/components/opportunities/StatusControl";
 import { EditOpportunitySection } from "@/components/opportunities/EditOpportunitySection";
 import { DeleteOpportunityButton } from "@/components/opportunities/DeleteOpportunityButton";
 import { dbHint } from "@/lib/config";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +43,8 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="glass-card p-5">
-      <h2 className="text-[13px] font-medium text-[var(--color-text-muted)] tracking-wider mb-3">
+    <section className="card-l">
+      <h2 className="text-[11px] font-medium text-[var(--color-text-muted)] tracking-wider mb-3 uppercase">
         {title}
       </h2>
       {children}
@@ -113,42 +114,35 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      {/* 返回 */}
-      <Link
-        href="/opportunities"
-        className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-light)] transition-colors self-start"
-      >
-        <ArrowLeft size={14} />
-        返回机会列表
-      </Link>
-
-      {/* 页头 */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] leading-snug min-w-0 [overflow-wrap:anywhere]">
-              {item.title}
-            </h1>
+    <PageBody>
+      <PageHeader
+        title={item.title}
+        subtitle={
+          <>
             <StatusBadge status={item.status} />
             {item.category && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-bg-card)] text-[13px] text-[var(--color-text-secondary)]">
-                <Tag size={11} />
+              <span className="badge">
+                <Tag size={10} />
                 {item.category}
               </span>
             )}
-          </div>
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap mt-2">
             <span className="inline-flex items-center gap-1.5">
               <Clock size={13} />
               创建于 {formatDateTime(item.created_at)}
             </span>
             <span>更新于 {formatDateTime(item.updated_at)}</span>
-          </p>
-        </div>
-      </div>
+            <Link
+              href="/opportunities"
+              className="inline-flex items-center gap-1 hover:text-[var(--color-accent-light)] transition-colors"
+            >
+              <ArrowLeft size={12} />
+              返回机会列表
+            </Link>
+          </>
+        }
+      />
 
-      {/* 编辑入口（展开后为完整表单） */}
+      {/* 编辑信息：折叠态只占一行右侧按钮，展开后表单就地铺开 */}
       <EditOpportunitySection item={item} knownCategories={knownCategories} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
@@ -222,7 +216,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       </div>
 
       {/* 阅读辅助 */}
-      <p className="text-[13px] text-[var(--color-text-muted)]">机会编号 #{item.id}</p>
-    </div>
+      <p className="text-[11px] text-[var(--color-text-muted)]">机会编号 #{item.id}</p>
+    </PageBody>
   );
 }

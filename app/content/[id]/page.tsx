@@ -19,6 +19,7 @@ import { ImportPanel } from "@/components/content/ImportPanel";
 import { SourcePanel } from "@/components/content/SourcePanel";
 import { ProductionTimeline } from "@/components/content/ProductionTimeline";
 import { dbHint } from "@/lib/config";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -93,35 +94,30 @@ export default async function ContentDetailPage({ params }: PageProps) {
   const kinds = importedKinds(project);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      <Link
-        href="/content"
-        className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-light)] transition-colors self-start"
-      >
-        <ArrowLeft size={14} />
-        返回内容中心
-      </Link>
-
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] leading-snug min-w-0 [overflow-wrap:anywhere]">
-              {project.title}
-            </h1>
+    <PageBody>
+      <PageHeader
+        title={project.title}
+        subtitle={
+          <>
             <ProjectStatusBadge status={project.status} />
             <ContentTypeBadge type={project.content_type} />
             <ProductionStatusBadge status={project.production_status} />
-          </div>
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap mt-2">
             <span className="inline-flex items-center gap-1.5">
               <Clock size={13} />
               创建于 {formatDateTime(project.created_at)}
             </span>
             <span>更新于 {formatDateTime(project.updated_at)}</span>
             <span>项目编号 #{project.id}</span>
-          </p>
-        </div>
-      </div>
+            <Link
+              href="/content"
+              className="inline-flex items-center gap-1 hover:text-[var(--color-accent-light)] transition-colors"
+            >
+              <ArrowLeft size={12} />
+              返回内容中心
+            </Link>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2 flex flex-col gap-4 min-w-0">
@@ -185,6 +181,6 @@ export default async function ContentDetailPage({ params }: PageProps) {
           </SectionCard>
         </div>
       </div>
-    </div>
+    </PageBody>
   );
 }

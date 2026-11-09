@@ -17,6 +17,7 @@ import { EntityTypeBadge } from "@/components/entities/EntityTypeBadge";
 import { DataSufficiencyNotice } from "@/components/entities/DataSufficiencyNotice";
 import { MentionTimeline } from "@/components/entities/MentionTimeline";
 import { dbHint } from "@/lib/config";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 
 // 实体详情是纯阅读页（无写操作、无写后回显）。
 // 实体提及由 n8n 每天 08:30 更新一次，缓存 5 分钟足够。
@@ -34,8 +35,8 @@ interface PageProps {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="glass-card p-5">
-      <h2 className="text-[13px] font-medium text-[var(--color-text-muted)] tracking-wider mb-3">
+    <section className="card-l">
+      <h2 className="text-[11px] font-medium text-[var(--color-text-muted)] tracking-wider mb-3 uppercase">
         {title}
       </h2>
       {children}
@@ -73,54 +74,43 @@ export default async function EntityDetailPage({ params }: PageProps) {
   const { entity, stats, mentions, relatedIdeas, relatedOpportunities } = detail;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4">
-      <Link
-        href="/entities"
-        className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-light)] transition-colors self-start"
-      >
-        <ArrowLeft size={14} />
-        返回实体列表
-      </Link>
-
-      {/* 页头 */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] leading-snug min-w-0 [overflow-wrap:anywhere]">
-              {entity.name}
-            </h1>
+    <PageBody>
+      <PageHeader
+        title={entity.name}
+        subtitle={
+          <>
             <EntityTypeBadge type={entity.entityType} />
             {entity.entityType === "unknown" && (
-              <span className="text-[12px] text-[var(--color-text-muted)]">
+              <span className="text-[11px] text-[var(--color-text-muted)]">
                 类型待人工确认
               </span>
             )}
-          </div>
-
-          {entity.aliases.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap mt-2">
-              <Tag size={12} className="text-[var(--color-text-muted)]" />
-              {entity.aliases.map((alias) => (
-                <span
-                  key={alias}
-                  className="px-2 py-0.5 rounded-md bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)] text-[12px] text-[var(--color-text-secondary)]"
-                >
-                  {alias}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap mt-2">
+            {entity.aliases.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 flex-wrap">
+                <Tag size={11} className="text-[var(--color-text-muted)]" />
+                {entity.aliases.map((alias) => (
+                  <span key={alias} className="badge">
+                    {alias}
+                  </span>
+                ))}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays size={13} />
               {stats.firstMentionDate ?? "—"} ~ {stats.lastMentionDate ?? "—"}
             </span>
             <span>归一化名 {entity.normalizedName}</span>
             <span>更新于 {formatDateTime(entity.updatedAt)}</span>
-          </p>
-        </div>
-      </div>
+            <Link
+              href="/entities"
+              className="inline-flex items-center gap-1 hover:text-[var(--color-accent-light)] transition-colors"
+            >
+              <ArrowLeft size={12} />
+              返回实体列表
+            </Link>
+          </>
+        }
+      />
 
       {/* 统计卡 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -237,6 +227,6 @@ export default async function EntityDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
-    </div>
+    </PageBody>
   );
 }
