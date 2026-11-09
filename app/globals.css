@@ -33,6 +33,14 @@
   --color-zone-trend: #a855f7;
   --color-zone-opportunity: #10b981;
 
+  /* 图表系列色（6 色轮转）：暗黑用高饱和荧光系 */
+  --chart-1: #818cf8;
+  --chart-2: #34d399;
+  --chart-3: #f59e0b;
+  --chart-4: #c084fc;
+  --chart-5: #60a5fa;
+  --chart-6: #f472b6;
+
   --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
 }
@@ -67,6 +75,14 @@
   --color-zone-headline: #b8562a;
   --color-zone-trend: #7d4f9c;
   --color-zone-opportunity: #4f7d4a;
+
+  /* 图表系列色（暖风）：同色相降饱和，贴合米纸底，避免荧光刺眼 */
+  --chart-1: #5b64c4;
+  --chart-2: #4f7d4a;
+  --chart-3: #b8832b;
+  --chart-4: #8a5aa8;
+  --chart-5: #3f6d9e;
+  --chart-6: #a85673;
 }
 
 html {

@@ -25,9 +25,10 @@ export interface TrendChartProps {
   height?: number;
 }
 
-const AXIS_TEXT = "#6b7689"; // --color-text-muted
-const VALUE_TEXT = "#9ba8b8"; // --color-text-secondary
-const GRID_LINE = "#1e2d44"; // --color-border-subtle
+// 轴/网格颜色走 CSS 变量 —— 硬编码深色值在暖风主题下会糊成一片
+const AXIS_TEXT = "var(--color-text-muted)";
+const VALUE_TEXT = "var(--color-text-secondary)";
+const GRID_LINE = "var(--color-border-subtle)";
 const FONT_SIZE = 13; // 全局约定：字号不小于 13px
 
 const PAD = { top: 18, right: 16, bottom: 42, left: 46 };

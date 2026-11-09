@@ -18,6 +18,7 @@ import {
   type KeywordStat,
 } from "@/lib/trends";
 import { DbErrorState } from "@/components/DbErrorState";
+import { PageHeader, PageBody } from "@/components/PageHeader";
 import { SERIES_COLORS } from "@/components/trends/chart-colors";
 import { TrendChart } from "@/components/trends/TrendChart";
 import { KeywordList } from "@/components/trends/KeywordList";
@@ -49,10 +50,10 @@ function SectionTitle({
         <Icon size={17} />
       </div>
       <div className="min-w-0">
-        <h2 className="text-[17px] font-semibold text-[var(--color-text-primary)] leading-snug">
+        <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)] leading-snug">
           {title}
         </h2>
-        <p className="text-[13px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+        <p className="text-[12px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
           {desc}
         </p>
       </div>
@@ -107,34 +108,29 @@ export default async function TrendsPage({
   }));
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-5 flex flex-col gap-4 max-w-6xl">
-      {/* 页头 */}
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-[22px] lg:text-[24px] font-bold text-[var(--color-text-primary)] mb-1">
-            趋势观察
-          </h1>
-          <p className="text-[13px] text-[var(--color-text-muted)] flex items-center gap-3 flex-wrap">
+    <PageBody>
+      <PageHeader
+        title="趋势观察"
+        subtitle={
+          <>
             <span className="inline-flex items-center gap-1.5">
               <TrendingUp size={13} />
               {range.label}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Database size={13} />
-              全库共{" "}
+              全库共
               <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">
                 {catalog.totalReports}
-              </span>{" "}
+              </span>
               篇日报
               {catalog.earliest && catalog.latest && (
-                <>
-                  （{catalog.earliest} ~ {catalog.latest}）
-                </>
+                <>（{catalog.earliest} ~ {catalog.latest}）</>
               )}
             </span>
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* 时间范围筛选（状态在 URL query） */}
       <RangeFilter
@@ -157,23 +153,17 @@ export default async function TrendsPage({
 
       {data.totals.reports === 0 ? (
         /* 范围内无日报：空态 + 引导 */
-        <div className="glass-card p-10 text-center">
-          <CalendarX2
-            size={28}
-            className="text-[var(--color-text-muted)] mx-auto mb-3"
-          />
-          <p className="text-base text-[var(--color-text-secondary)] mb-1">
+        <div className="empty-state">
+          <CalendarX2 size={26} className="text-[var(--color-text-muted)]" />
+          <p className="text-[14px] text-[var(--color-text-secondary)]">
             该时间范围内没有日报
           </p>
-          <p className="text-[13px] text-[var(--color-text-muted)] max-w-md mx-auto leading-relaxed">
+          <p className="text-[13px] text-[var(--color-text-muted)] max-w-md leading-relaxed">
             {catalog.earliest && catalog.latest
               ? `数据库中现有日报的时间范围是 ${catalog.earliest} ~ ${catalog.latest}（共 ${catalog.totalReports} 篇）。可调整时间范围，或查看全部数据。`
               : "系统生成日报后，趋势统计会自动出现在这里。"}
           </p>
-          <Link
-            href="/trends"
-            className="inline-flex items-center gap-2 px-4 py-2 mt-5 rounded-lg bg-[var(--color-accent)] text-white text-sm hover:opacity-90 transition-opacity"
-          >
+          <Link href="/trends" className="btn-primary mt-1">
             查看全部数据
           </Link>
         </div>
@@ -181,9 +171,19 @@ export default async function TrendsPage({
         <>
           {/* 数据稀少提示（不阻断展示，不造数） */}
           {data.totals.reports < 3 && (
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-start gap-2.5">
-              <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-[13px] text-amber-200/90 leading-relaxed">
+            <div
+              className="rounded-xl px-4 py-3 flex items-start gap-2.5"
+              style={{
+                border: "1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)",
+                background: "color-mix(in srgb, var(--color-warning) 8%, transparent)",
+              }}
+            >
+              <Info
+                size={15}
+                className="shrink-0 mt-0.5"
+                style={{ color: "var(--color-warning)" }}
+              />
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
                 当前范围内仅有 {data.totals.reports} 篇日报，统计代表性有限；
                 图表按真实数据绘制（数据点少时只呈现单点/单柱），
                 随日报积累，趋势与持续热点会自动完善。
@@ -192,7 +192,7 @@ export default async function TrendsPage({
           )}
 
           {/* 产出节奏 */}
-          <section className="glass-card p-4 lg:p-5 flex flex-col gap-3">
+          <section className="card-l flex flex-col gap-3">
             <SectionTitle
               icon={BarChart3}
               title="产出节奏"
@@ -209,7 +209,7 @@ export default async function TrendsPage({
           </section>
 
           {/* 热点统计 */}
-          <section className="glass-card p-4 lg:p-5 flex flex-col gap-3">
+          <section className="card-l flex flex-col gap-3">
             <SectionTitle
               icon={Hash}
               title="热点统计"
@@ -222,7 +222,7 @@ export default async function TrendsPage({
                 colors={SERIES_COLORS}
               />
             ) : (
-              <div className="rounded-xl border border-[var(--color-border-subtle)] p-8 text-center">
+              <div className="rounded-lg border border-dashed border-[var(--color-border-subtle)] p-8 text-center">
                 <Hash
                   size={24}
                   className="text-[var(--color-text-muted)] mx-auto mb-2.5"
@@ -238,7 +238,7 @@ export default async function TrendsPage({
           </section>
 
           {/* 关键词频次趋势 */}
-          <section className="glass-card p-4 lg:p-5 flex flex-col gap-3">
+          <section className="card-l flex flex-col gap-3">
             <SectionTitle
               icon={LineChart}
               title="关键词频次趋势"
@@ -254,7 +254,7 @@ export default async function TrendsPage({
                 height={300}
               />
             ) : (
-              <div className="rounded-xl border border-[var(--color-border-subtle)] p-8 text-center">
+              <div className="rounded-lg border border-dashed border-[var(--color-border-subtle)] p-8 text-center">
                 <LineChart
                   size={24}
                   className="text-[var(--color-text-muted)] mx-auto mb-2.5"
@@ -273,7 +273,7 @@ export default async function TrendsPage({
           </section>
 
           {/* 持续热点 */}
-          <section className="glass-card p-4 lg:p-5 flex flex-col gap-3">
+          <section className="card-l flex flex-col gap-3">
             <SectionTitle
               icon={Repeat}
               title="持续热点"
@@ -295,6 +295,6 @@ export default async function TrendsPage({
         无数据时展示空态而不补造数据；「近 7 天 / 近 30 天」以今天为基准，
         「自定义」支持任意起止日期（起止颠倒自动交换）。
       </p>
-    </div>
+    </PageBody>
   );
 }
