@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* 深色科技风色板：使用标准 :root 变量，避免 Turbopack 对 @theme 的解析告警 */
-:root {
+:root,
+[data-theme="dark"] {
   --color-bg-base: #070b14;
   --color-bg-panel: #0d1421;
   --color-bg-card: #111b2e;
@@ -14,24 +15,62 @@
   --color-accent: #6366f1;
   --color-accent-light: #818cf8;
   --color-accent-glow: rgba(99, 102, 241, 0.15);
+  --color-on-accent: #ffffff;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
   --color-link: #60a5fa;
 
+  /* 选题状态色：待制作 / 已选用 / 已制作 / 已放弃
+     走主题令牌而非硬编码 tailwind 色，暖风主题下才不会与底色打架 */
+  --color-status-todo: #60a5fa;
+  --color-status-picked: #f59e0b;
+  --color-status-made: #10b981;
+  --color-status-dropped: #7c8798;
+
   --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+}
+
+/* 暖风主题：米纸底 + 赭石强调，与暗黑共用同一组 token 名，组件无需分支判断 */
+[data-theme="warm"] {
+  --color-bg-base: #f6efe4;
+  --color-bg-panel: #fdf9f3;
+  --color-bg-card: #ffffff;
+  --color-bg-card-hover: #fbf5ec;
+  --color-border-subtle: #e6dac6;
+  --color-border-glow: #d3c2a6;
+  --color-text-primary: #2b2620;
+  --color-text-secondary: #6b5f50;
+  --color-text-muted: #96887a;
+  --color-accent: #c0662c;
+  --color-accent-light: #d98a52;
+  --color-accent-glow: rgba(192, 102, 44, 0.12);
+  --color-on-accent: #ffffff;
+  --color-success: #4f7d4a;
+  --color-warning: #b8832b;
+  --color-danger: #b23f2e;
+  --color-link: #a2592b;
+
+  /* 选题状态色（暖风）：同色相降饱和，贴合米纸底 */
+  --color-status-todo: #3f6d9e;
+  --color-status-picked: #b8832b;
+  --color-status-made: #4f7d4a;
+  --color-status-dropped: #9b8d7e;
 }
 
 html {
   background: var(--color-bg-base);
   /* 锚点跳转平滑滚动；不影响浏览器前进/后退与原生锚点定位 */
   scroll-behavior: smooth;
+  /* 主题切换时背景色跟着变，避免出现闪白 */
+  transition: background-color 0.2s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+    transition: none;
   }
 }
 
@@ -61,7 +100,7 @@ body {
 
 /* 玻璃质感卡片 */
 .glass-card {
-  background: rgba(17, 27, 46, 0.6);
+  background: color-mix(in srgb, var(--color-bg-card) 78%, transparent);
   backdrop-filter: blur(12px);
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
@@ -82,6 +121,207 @@ body {
 /* 发光效果 */
 .glow-accent {
   box-shadow: 0 0 20px var(--color-accent-glow);
+}
+
+/* ── 设计系统原语（阶段五地基，零页面改动） ─────────────────────────
+   卡片规格：L 主卡 p-6 / M 标准卡 p-5 / S 紧凑卡 p-4
+   字号收敛：2xs 10 / xs 11 / sm 13 / base 14 / lg 16 / xl 18 / 2xl 22 / 3xl 24
+   ───────────────────────────────────────────────────────────────── */
+
+/* 卡片：L 主卡 —— 通栏焦点区 / 页面级主区块 */
+.card-l {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 24px;
+  transition: border-color 0.2s;
+}
+.card-l:hover {
+  border-color: var(--color-border-glow);
+}
+
+/* 卡片：M 标准卡 —— 面板 / 分组内容 */
+.card-m {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 20px;
+  transition: border-color 0.2s;
+}
+.card-m:hover {
+  border-color: var(--color-border-glow);
+}
+
+/* 卡片：S 紧凑卡 —— 指标 / 条目 */
+.card-s {
+  background: var(--color-bg-card-hover);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 16px;
+  transition: border-color 0.2s;
+}
+.card-s:hover {
+  border-color: var(--color-border-glow);
+}
+
+/* 焦点区：全页唯一强调，accent 2px 描边 */
+.focus-zone {
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-accent);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* 页头：标题 + 副标题 + 右侧动作区 */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* 焦点区（语义化健康状态） */
+.focus-zone-success {
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-success);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* 按钮原语 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: 1px solid transparent;
+  transition: opacity 0.18s;
+}
+.btn-primary:hover {
+  opacity: 0.88;
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-subtle);
+  transition: border-color 0.18s, color 0.18s;
+}
+.btn-secondary:hover {
+  border-color: var(--color-border-glow);
+  color: var(--color-text-primary);
+}
+.btn-ghost-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-danger);
+  border: 1px solid transparent;
+  transition: background 0.18s;
+}
+.btn-ghost-danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+/* 状态徽章：颜色由 --status-color 注入（各状态对应 --color-status-* 主题令牌） */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 20px;
+  background: color-mix(in srgb, var(--status-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-color) 32%, transparent);
+  color: var(--status-color);
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--status-color);
+}
+
+/* 徽章 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 20px;
+  background: var(--color-bg-card-hover);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.badge-success {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 45%, transparent);
+}
+.badge-warning {
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
+}
+.badge-danger {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+/* 筛选胶囊（状态筛选） */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-subtle);
+  transition: border-color 0.18s, color 0.18s;
+}
+.chip:hover {
+  border-color: var(--color-border-glow);
+  color: var(--color-text-primary);
+}
+.chip-active {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-color: transparent;
+}
+
+/* 空态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  border-radius: 12px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  text-align: center;
+}
+
+/* 数字强调：等宽数字，避免跳动 */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Markdown 渲染样式（长文阅读：标题 22–28px / 正文 17px / 行高 1.9） */

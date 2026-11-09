@@ -4,6 +4,8 @@
 /node_modules
 /.pnp
 .pnp.*
+# 项目内 npm 缓存（沙箱内安装依赖时使用，避免写入外接盘共享缓存）
+/.npm-cache
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

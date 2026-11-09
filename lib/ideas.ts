@@ -77,6 +77,141 @@ export async function countIdeas(): Promise<number> {
   }
 }
 
+/* ==================== 选题态势聚合（只读，供 /ideas 焦点区使用） ==================== */
+
+/** 各状态的选题数量（漏斗用） */
+export type IdeaStatusCounts = Record<IdeaStatus, number>;
+
+/** 价值分分布：key 为 1-10 的分值，value 为该分值的选题数 */
+export type IdeaScoreHistogram = Record<number, number>;
+
+/** 每日产出节奏：report_date → 当日选题数 */
+export interface IdeaDailyCount {
+  report_date: string;
+  count: number;
+}
+
+export interface IdeaStats {
+  /** 总条数 */
+  total: number;
+  /** 状态漏斗计数（含「已放弃」，收纳区用） */
+  statusCounts: IdeaStatusCounts;
+  /** 价值分 1-10 的分布（缺分值不计） */
+  scoreHistogram: IdeaScoreHistogram;
+  /** 已评分条数 */
+  scoredCount: number;
+  /** 已评分条目的平均分（无评分返回 null） */
+  avgScore: number | null;
+  /** 高分库存（≥ highScoreThreshold） */
+  highScoreCount: number;
+  /** 高分阈值 */
+  highScoreThreshold: number;
+  /** 最近若干天的每日产出（日期倒序） */
+  daily: IdeaDailyCount[];
+  /** 待制作 + 已选用（还没做成）的高分选题，评分高者优先 */
+  pendingTop: IdeaRow[];
+  /** 收纳区：已放弃的条数 */
+  droppedCount: number;
+  /** 收纳区：低分且未放弃的条数（value_score <= lowScoreThreshold） */
+  lowScoreCount: number;
+}
+
+/** 高分阈值：≥7 分算高分选题 */
+const HIGH_SCORE_THRESHOLD = 7;
+/** 低分阈值：≤3 分算低分 */
+const LOW_SCORE_THRESHOLD = 3;
+/** 节奏条统计的天数 */
+const DAILY_WINDOW = 7;
+
+/**
+ * 一次性取回 /ideas 焦点区所需的全部聚合指标。
+ *
+ * 说明：
+ * - 全部走 getReadPool()（只读账号，仅 SELECT），不改表结构、不建索引；
+ * - 用 4 条并行查询而不是一个大 JOIN，避免 PG 对 topic_ideas 做全表 hash join 时
+ *   把每一行都物化（当前量级很小，但保持查询形态可预期）。
+ */
+export async function getIdeaStats(): Promise<IdeaStats> {
+  const client = await getReadPool().connect();
+  try {
+    const [statusRes, histRes, avgRes, dailyRes, topRes] = await Promise.all([
+      client.query<{ status: IdeaStatus; count: number }>(
+        `SELECT status, count(*)::int AS count FROM topic_ideas GROUP BY status`
+      ),
+      client.query<{ score: number; count: number }>(
+        `SELECT value_score::int AS score, count(*)::int AS count
+         FROM topic_ideas
+         WHERE value_score IS NOT NULL
+         GROUP BY value_score`
+      ),
+      client.query<{ avg_score: string | null; scored: number }>(
+        `SELECT avg(value_score)::text AS avg_score, count(value_score)::int AS scored
+         FROM topic_ideas`
+      ),
+      client.query<IdeaDailyCount>(
+        `SELECT report_date::text AS report_date, count(*)::int AS count
+         FROM topic_ideas
+         GROUP BY report_date
+         ORDER BY report_date DESC
+         LIMIT $1`,
+        [DAILY_WINDOW]
+      ),
+      client.query<IdeaRow>(
+        `SELECT ${IDEA_COLUMNS}
+         FROM topic_ideas
+         WHERE status IN ('待制作', '已选用')
+           AND value_score IS NOT NULL
+         ORDER BY value_score DESC, report_date DESC, id ASC
+         LIMIT 3`
+      ),
+    ]);
+
+    const statusCounts: IdeaStatusCounts = {
+      待制作: 0,
+      已选用: 0,
+      已制作: 0,
+      已放弃: 0,
+    };
+    for (const row of statusRes.rows) {
+      if (row.status in statusCounts) statusCounts[row.status] = row.count;
+    }
+
+    const scoreHistogram: IdeaScoreHistogram = {};
+    for (let s = 1; s <= 10; s += 1) scoreHistogram[s] = 0;
+    for (const row of histRes.rows) {
+      if (row.score >= 1 && row.score <= 10) scoreHistogram[row.score] = row.count;
+    }
+
+    const avgRaw = avgRes.rows[0]?.avg_score;
+    const avgScore = avgRaw != null ? Number(avgRaw) : null;
+
+    // 低分且未放弃的条数
+    const lowRes = await client.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM topic_ideas
+       WHERE value_score IS NOT NULL AND value_score <= $1 AND status <> '已放弃'`,
+      [LOW_SCORE_THRESHOLD]
+    );
+
+    return {
+      total: Object.values(statusCounts).reduce((a, b) => a + b, 0),
+      statusCounts,
+      scoreHistogram,
+      scoredCount: avgRes.rows[0]?.scored ?? 0,
+      avgScore: avgScore != null && Number.isFinite(avgScore) ? avgScore : null,
+      highScoreCount: Object.entries(scoreHistogram)
+        .filter(([score]) => Number(score) >= HIGH_SCORE_THRESHOLD)
+        .reduce((sum, [, c]) => sum + c, 0),
+      highScoreThreshold: HIGH_SCORE_THRESHOLD,
+      daily: dailyRes.rows,
+      pendingTop: topRes.rows,
+      droppedCount: statusCounts.已放弃,
+      lowScoreCount: lowRes.rows[0]?.count ?? 0,
+    };
+  } finally {
+    client.release();
+  }
+}
+
 export async function getIdea(id: number): Promise<IdeaRow | null> {
   const client = await getReadPool().connect();
   try {

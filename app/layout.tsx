@@ -3,6 +3,9 @@ import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { MobileNav } from "@/components/MobileNav";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { MotionProvider } from "@/components/motion/MotionProvider";
+import { themeInitScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "每日 AI 情报内参 | DAILY AI INTELLIGENCE",
@@ -22,17 +25,25 @@ export default function RootLayout({
   const displayTz = process.env.DISPLAY_TZ || "Asia/Shanghai";
 
   return (
-    <html lang="zh-CN" className="h-full">
+    <html lang="zh-CN" className="h-full" suppressHydrationWarning>
+      <head>
+        {/* 主题首屏脚本：在 React 水合前写好 data-theme，避免先亮后暗闪烁 */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-full">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0">
-            <TopBar displayTz={displayTz} />
-            <MobileNav />
-            {/* 使用文档滚动而非内部滚动容器，保证锚点跳转、吸顶目录与阅读进度行为一致 */}
-            <main className="flex-1 min-w-0">{children}</main>
-          </div>
-        </div>
+        <ThemeProvider>
+          <MotionProvider>
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <div className="flex-1 flex flex-col min-w-0">
+                <TopBar displayTz={displayTz} />
+                <MobileNav />
+                {/* 使用文档滚动而非内部滚动容器，保证锚点跳转、吸顶目录与阅读进度行为一致 */}
+                <main className="flex-1 min-w-0">{children}</main>
+              </div>
+            </div>
+          </MotionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

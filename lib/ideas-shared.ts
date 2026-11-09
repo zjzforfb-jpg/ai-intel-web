@@ -11,19 +11,21 @@ export function isIdeaStatus(v: unknown): v is IdeaStatus {
   return typeof v === "string" && (IDEA_STATUSES as readonly string[]).includes(v);
 }
 
-// 状态徽章配色：待制作=蓝 / 已选用=橙 / 已制作=绿 / 已放弃=灰
-export const IDEA_STATUS_BADGE_CLASS: Record<IdeaStatus, string> = {
-  待制作: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  已选用: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  已制作: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  已放弃: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+// 状态配色：走主题令牌（--color-status-*），暗黑 / 暖风两套主题各给一套值。
+// 早前这里写死 tailwind 的 blue/orange/emerald/gray —— 暖风主题下会和米纸底打架。
+export const IDEA_STATUS_COLOR_VAR: Record<IdeaStatus, string> = {
+  待制作: "var(--color-status-todo)",
+  已选用: "var(--color-status-picked)",
+  已制作: "var(--color-status-made)",
+  已放弃: "var(--color-status-dropped)",
 };
 
-export const IDEA_STATUS_DOT_CLASS: Record<IdeaStatus, string> = {
-  待制作: "bg-blue-400",
-  已选用: "bg-orange-400",
-  已制作: "bg-emerald-400",
-  已放弃: "bg-gray-400",
+/** 状态 → CSS 变量名（供 style={{ "--status-color": ... }} 使用） */
+export const IDEA_STATUS_COLOR_VAR_NAME: Record<IdeaStatus, string> = {
+  待制作: "--color-status-todo",
+  已选用: "--color-status-picked",
+  已制作: "--color-status-made",
+  已放弃: "--color-status-dropped",
 };
 
 /** 选题行（与 topic_ideas 表结构对应，日期/时间在查询侧已转 text） */

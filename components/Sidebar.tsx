@@ -2,20 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Newspaper, Archive, TrendingUp, Network, Crosshair, Lightbulb, Clapperboard, Briefcase, Activity, Info } from "lucide-react";
-
-const navItems = [
-  { href: "/", label: "今日情报", icon: Newspaper },
-  { href: "/history", label: "历史报告", icon: Archive },
-  { href: "/trends", label: "趋势观察", icon: TrendingUp },
-  { href: "/entities", label: "实体追踪", icon: Network },
-  { href: "/topics", label: "专题追踪", icon: Crosshair },
-  { href: "/ideas", label: "短视频选题", icon: Lightbulb },
-  { href: "/content", label: "内容生产", icon: Clapperboard },
-  { href: "/opportunities", label: "商业机会", icon: Briefcase },
-  { href: "/monitor", label: "系统监控", icon: Activity },
-  { href: "/about", label: "关于平台", icon: Info },
-];
+import { NAV_GROUPS, isNavActive } from "@/lib/nav-items";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -25,8 +12,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-6 border-b border-[var(--color-border-subtle)]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center glow-accent">
-            <span className="text-white font-bold text-sm">AI</span>
+          <div className="w-9 h-9 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
+            <span className="text-[var(--color-on-accent)] font-bold text-sm">AI</span>
           </div>
           <div>
             <div className="text-sm font-semibold text-[var(--color-text-primary)] leading-tight">
@@ -39,29 +26,36 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                isActive
-                  ? "bg-[var(--color-accent-glow)] text-[var(--color-accent-light)] border border-[var(--color-border-glow)]"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card)] hover:text-[var(--color-text-primary)]"
-              }`}
-            >
-              <Icon size={18} className="shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      {/* Nav：三级分组（情报 / 生产 / 系统） */}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label} className="mb-4 last:mb-0">
+            <div className="px-3 pb-1.5 text-[11px] font-medium text-[var(--color-text-muted)]">
+              {group.label}
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = isNavActive(item.href, pathname);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isActive
+                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] font-medium"
+                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card)] hover:text-[var(--color-text-primary)]"
+                    }`}
+                  >
+                    <Icon size={17} className="shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}
