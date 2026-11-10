@@ -10,23 +10,78 @@
 #   → 备份逻辑已整体改写为 Node（scripts/backup-node.mts），本 plist 与 monitor 同构。
 #
 # 用法（在你自己的 Terminal.app 里跑）：
-#   zsh "PROJECT_ROOT/ai-intel-web/ops/install-backup-node.sh"
+#   cd <仓库目录> && zsh ops/install-backup-node.sh
+#
+# 注：如果你要同时装 monitor 与 backup，直接用 ops/install-launchd.sh 更省事。
 
 set -uo pipefail
 
-REPO="PROJECT_ROOT/ai-intel-web"
+OPS_DIR="${${0:A}:h}"
+source "$OPS_DIR/paths.sh"
+
 AGENTS="$HOME/Library/LaunchAgents"
 LABEL="com.aiintel.backup"
 UID_NUM="$(id -u)"
-BKLOG="BACKUP_DIR//backup.log"
 
 echo "=============================================="
 echo " 安装 com.aiintel.backup（Node 版）"
 echo " 时间: $(date '+%F %T')"
 echo "=============================================="
 
-echo "== 1. 部署 plist =="
-cp "$REPO/ops/com.aiintel.backup.plist" "$AGENTS/"
+echo "== 0. 配置 =="
+echo "   仓库: $AIINTEL_REPO"
+echo "   备份: $AIINTEL_BACKUP_DIR"
+echo "   node: $AIINTEL_NODE_BIN"
+mkdir -p "$AIINTEL_BACKUP_DIR"
+
+echo "== 1. 渲染并部署 plist =="
+# 模板占位符 → 本机真实路径（与 install-launchd.sh 同一套渲染逻辑）
+/usr/bin/python3 - "$OPS_DIR/com.aiintel.backup.plist" "$AGENTS/$LABEL.plist" \
+  "$AIINTEL_REPO" "$AIINTEL_BACKUP_DIR" "$AIINTEL_NODE_BIN" <<'PYEOF'
+import plistlib, sys, os
+
+tmpl, out, repo, backup_dir, node_bin = sys.argv[1:6]
+with open(tmpl, "rb") as f:
+    d = plistlib.load(f)
+
+def sub(v):
+    if not isinstance(v, str):
+        return v
+    return (v.replace("__REPO_PLACEHOLDER__", repo)
+             .replace("__BACKUP_DIR_PLACEHOLDER__", backup_dir)
+             .replace("__NODE_BIN__", node_bin))
+
+if "WorkingDirectory" in d:
+    d["WorkingDirectory"] = sub(d["WorkingDirectory"])
+if "ProgramArguments" in d:
+    d["ProgramArguments"] = [sub(a) for a in d["ProgramArguments"]]
+if "EnvironmentVariables" in d:
+    d["EnvironmentVariables"] = {k: sub(v) for k, v in d["EnvironmentVariables"].items()}
+
+wd = d.get("WorkingDirectory", "")
+if wd and not os.path.isdir(wd):
+    sys.stderr.write("ERROR: WorkingDirectory 不存在: %s\n" % wd)
+    sys.exit(1)
+
+leftover = []
+def check(v):
+    if isinstance(v, str) and "__" in v:
+        leftover.append(v)
+    elif isinstance(v, list):
+        for x in v:
+            check(x)
+    elif isinstance(v, dict):
+        for x in v.values():
+            check(x)
+check(d)
+if leftover:
+    sys.stderr.write("ERROR: 仍有未替换的占位符: %s\n" % leftover)
+    sys.exit(1)
+
+with open(out, "wb") as f:
+    plistlib.dump(d, f)
+PYEOF
+
 plutil -lint "$AGENTS/$LABEL.plist"
 plutil -p "$AGENTS/$LABEL.plist" | grep -E "WorkingDirectory|0 =>|1 =>|2 =>|3 =>" | head -6
 
@@ -38,7 +93,7 @@ launchctl print "gui/$UID_NUM/$LABEL" 2>&1 | grep -E "state =|runs =|path =" | h
 
 echo
 echo "== 3. 立即试跑（判据：backup.log 新增 backup OK）=="
-BEFORE=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
+BEFORE=$(wc -l < "$AIINTEL_BACKUP_LOG" 2>/dev/null || echo 0)
 : > /tmp/aiintel_backup.out; : > /tmp/aiintel_backup.err
 launchctl kickstart -k "gui/$UID_NUM/$LABEL" >/dev/null 2>&1
 
@@ -48,9 +103,9 @@ OK=0
 FINISHED=0
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
   sleep 1
-  NOW=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
+  NOW=$(wc -l < "$AIINTEL_BACKUP_LOG" 2>/dev/null || echo 0)
   if [ "$NOW" -gt "$BEFORE" ]; then
-    NEW=$(tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null)
+    NEW=$(tail -n +$((BEFORE + 1)) "$AIINTEL_BACKUP_LOG" 2>/dev/null)
     # 出现最终结论行才算跑完
     if echo "$NEW" | grep -q "backup OK"; then
       OK=1; FINISHED=1; break
@@ -64,8 +119,8 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
     :
   elif launchctl print "gui/$UID_NUM/$LABEL" 2>&1 | grep -qE "last exit code = [0-9]"; then
     sleep 1
-    NOW=$(wc -l < "$BKLOG" 2>/dev/null || echo 0)
-    if [ "$NOW" -gt "$BEFORE" ] && tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | grep -q "backup OK"; then
+    NOW=$(wc -l < "$AIINTEL_BACKUP_LOG" 2>/dev/null || echo 0)
+    if [ "$NOW" -gt "$BEFORE" ] && tail -n +$((BEFORE + 1)) "$AIINTEL_BACKUP_LOG" 2>/dev/null | grep -q "backup OK"; then
       OK=1
     fi
     FINISHED=1; break
@@ -77,7 +132,7 @@ if [ $FINISHED -eq 0 ]; then
 fi
 
 echo "--- backup.log 新增 ---"
-tail -n +$((BEFORE + 1)) "$BKLOG" 2>/dev/null | tail -8
+tail -n +$((BEFORE + 1)) "$AIINTEL_BACKUP_LOG" 2>/dev/null | tail -8
 echo "--- stdout ---"; tail -3 /tmp/aiintel_backup.out 2>/dev/null
 echo "--- stderr ---"; tail -3 /tmp/aiintel_backup.err 2>/dev/null
 echo "--- launchd ---"

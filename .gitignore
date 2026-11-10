@@ -18,6 +18,9 @@
 # next.js
 /.next/
 /out/
+# Next.js 构建缓存残留目录（曾误入 git 历史，见 docs/github-发布手册.md）
+/.next-stale-*/
+/.next-*/
 
 # production
 /build
@@ -39,6 +42,16 @@ yarn-error.log*
 
 # 本地凭据文件（只读用户密码等）
 .pg-credentials.txt
+
+# 本机私有路径配置（含个人目录名，绝不入库）
+# 模板见 ops/paths.sh
+ops/paths.local.sh
+
+# 备份产物目录（若在仓库内）
+backups/
+*.bundle
+*.sqlite
+*.sql.gz
 
 # vercel
 .vercel

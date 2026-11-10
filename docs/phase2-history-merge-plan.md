@@ -207,7 +207,7 @@
 正确回滚流程：
 
 ```bash
-BACKUP_DIR="PROJECT_ROOT/backups/phase2"
+BACKUP_DIR="${AIINTEL_BACKUP_DIR:-$HOME/WorkBuddyData/backups/aiintel}/../phase2"
 BACKUP="$BACKUP_DIR/opportunities-ideas-data-20261106-210411.sql"
 
 # 1) 先清空目标表（只清这两张，不动其他表）

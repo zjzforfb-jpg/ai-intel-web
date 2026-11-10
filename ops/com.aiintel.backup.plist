@@ -1,17 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  AI 情报平台 —— 每日自动备份（09:40）
+
+  ⚠️ 本文件是「模板」，不要直接 cp 到 ~/Library/LaunchAgents/。
+     请用 ops/install-launchd.sh —— 它会在安装时把
+     WorkingDirectory / AIINTEL_REPO / AIINTEL_BACKUP_DIR
+     替换成本机的真实路径，并写入 EnvironmentVariables。
+
+  保留模板形态入库的原因：让克隆后的其他用户能看懂服务结构，
+  且不把任何机器的个人目录名写进仓库。
+
+  安装：
+    zsh ops/install-launchd.sh
+
+  卸载：
+    launchctl bootout gui/$(id -u)/com.aiintel.backup
+
+  注意：
+  - StandardOutPath / StandardErrorPath 必须放 /tmp：
+    launchd 在 exec 前打开外挂卷上的文件会报 EX_CONFIG(78)。
+  - 不加 KeepAlive：备份失败时应由下次调度重试，不让 launchd 反复重启。
+-->
 <plist version="1.0">
 <dict>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
 		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>AIINTEL_REPO</key>
+		<string>__REPO_PLACEHOLDER__</string>
+		<key>AIINTEL_BACKUP_DIR</key>
+		<string>__BACKUP_DIR_PLACEHOLDER__</string>
 	</dict>
 	<key>Label</key>
 	<string>com.aiintel.backup</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/opt/homebrew/bin/node</string>
+		<string>__NODE_BIN__</string>
 		<string>--import</string>
 		<string>tsx</string>
 		<string>scripts/backup-node.mts</string>
@@ -28,6 +53,6 @@
 		<integer>40</integer>
 	</dict>
 	<key>WorkingDirectory</key>
-	<string>PROJECT_ROOT/ai-intel-web</string>
+	<string>__REPO_PLACEHOLDER__</string>
 </dict>
 </plist>

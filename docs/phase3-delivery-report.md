@@ -217,7 +217,7 @@ App 侧与 n8n 侧必须抽出**完全相同**的结果，否则会出现「页�
 
 ### 结论：只能做文件交接，不存在可调用接口
 
-在 `PROJECT_ROOT/` 全树用 ripgrep 搜索 `SYS_DRAFT` / `draft_script` / `settle_timeline` / `mechanism_dims`，**零命中**。`HOME_DIR/`、`TOOLS_DIR/`、`CODE_DIR/` 同样零命中。
+在本机项目根目录全树用 ripgrep 搜索 `SYS_DRAFT` / `draft_script` / `settle_timeline` / `mechanism_dims`，**零命中**。用户主目录与两个开发工具目录同样零命中。
 
 **没有编造任何连接地址。**
 
@@ -226,10 +226,13 @@ App 侧与 n8n 侧必须抽出**完全相同**的结果，否则会出现「页�
 用户真正在用的是 **`AI_DIRECTOR_PROJECT` 文件式流水线**，在本机有三处实例：
 
 ```
-PROJECT_ROOT/self-owned/project-a/AI_DIRECTOR_PROJECT
-PROJECT_ROOT/self-owned/project-a-copy/AI_DIRECTOR_PROJECT
-PROJECT_ROOT/self-owned/project-b-demo/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目A>/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目A>_副本/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目B> DEMO/AI_DIRECTOR_PROJECT
 ```
+
+> 注：原始路径含具体项目名与用户姓名，发布到公开仓库前已脱敏为占位符。
+> 三处实例的**目录结构与文件约定完全一致**。
 
 目录约定：
 ```

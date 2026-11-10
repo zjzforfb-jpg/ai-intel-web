@@ -10,10 +10,17 @@
  *   zsh 全部被拒、node 全部成功。
  *   → 因此备份逻辑整体改用 Node 实现，launchd 直接跑本文件。
  *
- * 产物（14 天保留，位于 BACKUP_DIR//）：
+ * 产物（14 天保留，位于 AIINTEL_BACKUP_DIR，默认 $HOME/WorkBuddyData/backups/aiintel/）：
  *   db/pg_ai_intelligence_YYYY-MM-DD.sql.gz   PostgreSQL 全量（由 sidecar 容器 crond 产出）
  *   n8n_sqlite_YYYY-MM-DD.sqlite              n8n 工作流库（WAL 感知一致快照）
  *   ai_intel_web_code_YYYY-MM-DD.bundle       git 全 refs 打包
+ *
+ * 路径可移植性：
+ *   所有路径均来自环境变量，不写死任何机器的个人目录名。
+ *   AIINTEL_REPO         仓库根目录（默认由本文件位置自推导）
+ *   AIINTEL_BACKUP_DIR   备份输出目录（默认 $HOME/WorkBuddyData/backups/aiintel）
+ *   AIINTEL_N8N_CONTAINER / AIINTEL_PG_CONTAINER  容器名
+ *   launchd 场景请在 plist 的 EnvironmentVariables 里注入这些变量。
  *
  * 设计原则（延续 zsh 版）：
  *   1. 任一步失败必须以非零码退出，否则 launchd 永远看到成功。
@@ -27,13 +34,35 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const BK = "BACKUP_DIR/";
-const AIWEB = "PROJECT_ROOT/ai-intel-web";
+// ------------------------------------------------------------------
+// 路径与运行时配置（全部可被环境变量覆盖，见文件头说明）
+// ------------------------------------------------------------------
+function envOr(key: string, fallback: string): string {
+  const v = process.env[key];
+  return v && v.trim() !== "" ? v : fallback;
+}
+
+/** 仓库根目录：优先 AIINTEL_REPO，否则由本文件位置向上两级自推导 */
+function resolveRepoRoot(): string {
+  const fromEnv = envOr("AIINTEL_REPO", "");
+  if (fromEnv) return path.resolve(fromEnv);
+  // 本文件位于 <repo>/scripts/backup-node.mts
+  // 注意：必须用 fileURLToPath 解码，不能直接用 URL.pathname ——
+  // pathname 会把中文与空格留成 %20 / %E6... 的 URL 编码，路径就失效了。
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, "..");
+}
+
+const BK = path.resolve(
+  envOr("AIINTEL_BACKUP_DIR", path.join(os.homedir(), "WorkBuddyData", "backups", "aiintel"))
+);
+const AIWEB = resolveRepoRoot();
 const LOG = path.join(BK, "backup.log");
 const RETENTION_DAYS = 14;
-const N8N_CONTAINER = "n8n-radar";
-const PG_CONTAINER = "n8n-radar-postgres";
+const N8N_CONTAINER = envOr("AIINTEL_N8N_CONTAINER", "n8n-radar");
+const PG_CONTAINER = envOr("AIINTEL_PG_CONTAINER", "n8n-radar-postgres");
 
 function ts(): string {
   // 与 zsh 版一致：本地时区（宿主 TZ=Asia/Shanghai）

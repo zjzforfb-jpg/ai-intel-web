@@ -12,12 +12,18 @@
 //   node --env-file=.env.local --import tsx scripts/phase3-restore-report.mts           # 预演
 //   node --env-file=.env.local --import tsx scripts/phase3-restore-report.mts --apply   # 执行
 import { readFileSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 import { Client } from "pg";
 
 const APPLY = process.argv.includes("--apply");
 const TARGET_ID = 5;
 
-const backupDir = "PROJECT_ROOT/backups/phase3";
+// 备份目录：可用 AIINTEL_PHASE3_BACKUP_DIR 覆盖，
+// 默认 $HOME/WorkBuddyData/backups/phase3（不写死任何机器的个人目录名）
+const backupDir =
+  process.env.AIINTEL_PHASE3_BACKUP_DIR ??
+  path.join(homedir(), "WorkBuddyData", "backups", "phase3");
 const file = readdirSync(backupDir)
   .filter((f) => f.startsWith("pre-phase3-") && f.endsWith(".sql"))
   .sort()

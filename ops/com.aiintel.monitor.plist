@@ -4,15 +4,19 @@
   - 08:30 n8n 出报，一次执行约 157 秒；09:05 留了 30+ 分钟余量
   - 09:15 是容器 sidecar 的 pg_dump，09:40 是备份脚本，三件事错开互不重叠
 
+  ⚠️ 本文件是「模板」，不要直接 cp 到 ~/Library/LaunchAgents/。
+     请用 ops/install-launchd.sh —— 它会在安装时把
+  WorkingDirectory / __NODE_BIN__ / __REPO_PLACEHOLDER__
+  替换成本机的真实路径。
+
   安装：
-    cp ops/com.aiintel.monitor.plist ~/Library/LaunchAgents/
-    osascript -e 'do shell script "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aiintel.monitor.plist" with administrator privileges'
+    zsh ops/install-launchd.sh
 
   卸载：launchctl bootout gui/$(id -u)/com.aiintel.monitor
 
   注意：
-  - 必须用绝对路径的 node。不要用 WorkBuddy 会话托管目录下的 node
-    （HOME_DIR//.workbuddy/binaries/...），那个目录会随版本回收消失。
+  - 必须用绝对路径的 node。不要用会话托管目录下的 node
+    （如 ~/.workbuddy/binaries/...），那个目录会随版本回收消失。
   - StandardOutPath / StandardErrorPath 必须放 /tmp：
     launchd 在 exec 前打开外挂卷上的文件会报 EX_CONFIG(78)。
   - 不加 KeepAlive：monitor:check 的退出码 2 表示「有 error 级发现」，
@@ -24,18 +28,20 @@
   <string>com.aiintel.monitor</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
+    <string>__NODE_BIN__</string>
     <string>--env-file=.env.local</string>
     <string>--import</string>
     <string>tsx</string>
     <string>scripts/monitor-check.ts</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>PROJECT_ROOT/ai-intel-web</string>
+  <string>__REPO_PLACEHOLDER__</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>AIINTEL_REPO</key>
+    <string>__REPO_PLACEHOLDER__</string>
   </dict>
   <key>StartCalendarInterval</key>
   <dict>

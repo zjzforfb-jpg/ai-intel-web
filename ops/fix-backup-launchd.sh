@@ -4,7 +4,7 @@
 # 背景（2026-11-09）：
 #   com.aiintel.monitor（node + 相对路径 + WorkingDirectory）在 launchd 下运行正常；
 #   com.aiintel.backup（/bin/zsh + 外接卷绝对路径）运行报：
-#       /bin/zsh: can't open input file: BACKUP_DIR//backup.sh
+#       /bin/zsh: can't open input file: <备份目录>/backup.sh
 #   而同一脚本在终端直接跑完全正常（backup.log 三项全 OK）。
 #   → 差异只在 launchd 的执行上下文，不在脚本本身。
 #
@@ -17,21 +17,29 @@
 #   3. 生成正式 plist、重新注册、立即 kickstart 验证。
 #
 # 用法（在你自己的 Terminal.app 里跑）：
-#   zsh "PROJECT_ROOT/ai-intel-web/ops/fix-backup-launchd.sh"
+#   cd <仓库目录> && zsh ops/fix-backup-launchd.sh
 #
 # 只动 com.aiintel.backup 一个服务，不碰 monitor。
 # backup.sh 本身幂等，重复执行安全。
+#
+# 路径来源：ops/paths.sh（可用 ops/paths.local.sh 覆盖本机私有配置）
 
 set -uo pipefail
+
+OPS_DIR="${${0:A}:h}"
+source "$OPS_DIR/paths.sh"
 
 UID_NUM="$(id -u)"
 LABEL="com.aiintel.backup"
 AGENTS="$HOME/Library/LaunchAgents"
 WORK="$HOME/aiintel-backup-fix"
-BK="BACKUP_DIR/"
+BK="$AIINTEL_BACKUP_DIR"
 SCRIPT="$BK/backup.sh"
-LOG="$BK/backup.log"
-MONITOR_WD="PROJECT_ROOT/ai-intel-web"
+LOG="$AIINTEL_BACKUP_LOG"
+MONITOR_WD="$AIINTEL_REPO"
+# 探针要探测的「外接卷」候选根目录：默认取备份目录的上两级，
+# 用户可在 ops/paths.local.sh 里覆盖 AIINTEL_VOLUME_ROOT
+VOL_ROOT="${AIINTEL_VOLUME_ROOT:-$(cd "$BK/../.." 2>/dev/null && pwd || echo /)}"
 
 echo "=============================================="
 echo " com.aiintel.backup 诊断与修复"
@@ -83,35 +91,36 @@ trap cleanup EXIT INT TERM
 #   关键：用 zsh 自身的 read < file（open()）读外接卷文件，而不是 fork 一个 head
 #   —— 因为失败就发生在 zsh 的 open() 上，fork 出去的进程是另一条路径。
 #   同时再跑一次 node 的 stat()，用来分离「WD 的问题」与「解释器的问题」。
+#   路径通过占位符在生成时注入，不写死个人目录名。
 # ------------------------------------------------------------------
-cat > "$WORK/probe.sh" <<'PEOF'
+cat > "$WORK/probe.sh" <<PEOF
 #!/bin/zsh
 exec 2>&1
-echo "PROBE cwd=$(pwd)"
-echo "PROBE HOME=[$HOME]"
-if { read -r _l < BACKUP_DIR//backup.sh } 2>/dev/null; then
+echo "PROBE cwd=\$(pwd)"
+echo "PROBE HOME=[\$HOME]"
+if { read -r _l < "$SCRIPT" } 2>/dev/null; then
   echo "ZSH_OPEN_OK"
 else
   echo "ZSH_OPEN_FAIL"
 fi
-if [ -r BACKUP_DIR//backup.sh ]; then echo "TEST_R_OK"; else echo "TEST_R_FAIL"; fi
-if ls WORKBUDDY_DATA_DIR >/dev/null 2>&1; then echo "LIST_OK"; else echo "LIST_FAIL"; fi
-if [ -d PROJECT_ROOT/ ]; then echo "MOVIE_DIR_OK"; else echo "MOVIE_DIR_FAIL"; fi
-if [ -d WORKBUDDY_DATA_DIR ]; then echo "WB_DATA_DIR_OK"; else echo "WB_DATA_DIR_FAIL"; fi
+if [ -r "$SCRIPT" ]; then echo "TEST_R_OK"; else echo "TEST_R_FAIL"; fi
+if ls "$VOL_ROOT" >/dev/null 2>&1; then echo "LIST_OK"; else echo "LIST_FAIL"; fi
+if [ -d "$VOL_ROOT" ]; then echo "VOL_ROOT_DIR_OK"; else echo "VOL_ROOT_DIR_FAIL"; fi
+if [ -d "$BK" ]; then echo "BK_DIR_OK"; else echo "BK_DIR_FAIL"; fi
 PEOF
 chmod +x "$WORK/probe.sh"
 
-cat > "$WORK/probe.mjs" <<'PEOF'
+cat > "$WORK/probe.mjs" <<PEOF
 import fs from "node:fs";
 console.log("PROBE cwd=" + process.cwd());
 try {
-  const s = fs.statSync("BACKUP_DIR//backup.sh");
+  const s = fs.statSync("$SCRIPT");
   console.log("NODE_STAT_OK size=" + s.size);
 } catch (e) {
   console.log("NODE_STAT_FAIL " + e.code);
 }
 try {
-  fs.readFileSync("BACKUP_DIR//backup.sh", "utf8");
+  fs.readFileSync("$SCRIPT", "utf8");
   console.log("NODE_READ_OK");
 } catch (e) {
   console.log("NODE_READ_FAIL " + e.code);
@@ -124,17 +133,17 @@ PEOF
 # ------------------------------------------------------------------
 probe_names=(
   "无 WD（当前失败配置）"
-  "WD=备份目录 WorkBuddyData"
-  "WD=monitor 同款 PROJECT_ROOT"
+  "WD=备份目录"
+  "WD=monitor 同款 仓库目录"
   "WD=内置盘 HOME"
-  "WD=卷根 EXTERNAL_VOLUME/"
+  "WD=卷根"
 )
 probe_wds=(
   ""
   "$BK"
   "$MONITOR_WD"
   "$HOME"
-  "EXTERNAL_VOLUME/"
+  "$VOL_ROOT"
 )
 
 echo
@@ -278,10 +287,10 @@ WIN_DESC=""
 # node 启动器：node 用 fs 读出脚本内容，通过 stdin 喂给 zsh。
 # 这样 zsh 完全不需要 open() 外接卷上的脚本文件 —— 只 open(2) 标准输入。
 # 若 node 的 stat() 能过而 zsh 的 open() 不能，这条路就能通。
-cat > "$WORK/runner.mjs" <<'REOF'
+cat > "$WORK/runner.mjs" <<REOF
 import fs from "node:fs";
 import { spawn } from "node:child_process";
-const SCRIPT = "BACKUP_DIR//backup.sh";
+const SCRIPT = "$SCRIPT";
 let content;
 try {
   content = fs.readFileSync(SCRIPT, "utf8");

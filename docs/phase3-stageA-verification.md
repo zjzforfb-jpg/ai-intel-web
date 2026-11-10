@@ -174,18 +174,21 @@ return [{ json: { report_date: src.report_date, report_markdown: src.report_mark
 
 ### 6.1 搜索结果：`SYS_DRAFT` / `draft_script` / `settle_timeline` / `mechanism_dims` 全部未找到
 
-用 ripgrep 在 `PROJECT_ROOT/` 全树搜索上述四个标识符，**零命中**。
-在 `HOME_DIR/`（排除 Library / node_modules / .git）、`TOOLS_DIR/`、`CODE_DIR/` 同样零命中。
+用 ripgrep 在本机项目根目录全树搜索上述四个标识符，**零命中**。
+在用户主目录（排除 Library / node_modules / .git）与两个开发工具目录同样零命中。
 
 ### 6.2 但找到了真实存在、结构完整的视频生产流水线
 
 **`AI_DIRECTOR_PROJECT` 文件式流水线**，存在于三个项目下：
 
 ```
-PROJECT_ROOT/self-owned/project-a/AI_DIRECTOR_PROJECT
-PROJECT_ROOT/self-owned/project-a-copy/AI_DIRECTOR_PROJECT
-PROJECT_ROOT/self-owned/project-b-demo/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目A>/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目A>_副本/AI_DIRECTOR_PROJECT
+<项目根>/自有项目/<项目B> DEMO/AI_DIRECTOR_PROJECT
 ```
+
+> 注：原始路径含具体项目名与用户姓名，发布到公开仓库前已脱敏为占位符。
+> 三处实例的**目录结构与文件约定完全一致**，这是本节结论的依据。
 
 目录约定（9 个阶段目录 + 1 个状态文件）：
 
