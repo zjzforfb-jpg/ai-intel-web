@@ -201,7 +201,7 @@ AIINTEL_VOLUME_ROOT="/Volumes/<你的卷>"
 | **SQL 全参数化** | 禁止拼接用户输入；ILIKE 通配符在 SQL 内转义 |
 | **不虚构数据** | 页面数据必须来自真实数据库；无数据显示空态，查询失败显示错误态 |
 | **不暴露公网** | `next dev` / `next start` 均绑 `127.0.0.1` |
-| **提交身份脱敏** | `.mailmap` 把历史作者映射为 GitHub noreply 邮箱 |
+| **提交身份脱敏** | 历史作者在推送前已被重写为 GitHub noreply 邮箱（`.mailmap` 本地生效，不入库） |
 | **XSS 防护** | 日报 Markdown 经 `rehype-sanitize` 清洗后渲染 |
 
 ---

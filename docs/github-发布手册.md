@@ -14,13 +14,16 @@
 |---|---|---|---|
 | 密钥 / Token | `sk-` `ghp_` `AKIA` `xox` `BEGIN PRIVATE KEY` `eyJ*.` | 0 | 无需处理 |
 | 邮箱 / 手机号 | 主流邮箱域 + `1[3-9]xxxxxxxxx` | 0 | 无需处理 |
-| 真实姓名 / 他人项目 | `SELF_NAME/` `self-owned/` `self-owned/project-b-demo/` | 6 处 | 占位符替换 |
-| 个人绝对路径 | `HOME_DIR/` `EXTERNAL_VOLUME/` | 40+ 处 | 占位符替换 + 抽成配置项 |
-| 提交者邮箱 | `git log --pretty='%an <%ae>'` | 2 个身份 | `.mailmap` 映射为 noreply |
+| 真实姓名 / 他人项目 | 中文姓名与项目名关键词 | 6 处 | 占位符替换 |
+| 个人绝对路径 | 用户主目录与外接卷根路径前缀 | 40+ 处 | 占位符替换 + 抽成配置项 |
+| 提交者邮箱 | `git log --pretty='%an <%ae>'` | 2 个身份 | filter-repo 重写为 noreply |
 | 内网 IP | 正则扫全仓 | 2 处（文档） | 属 Docker 内网，无害，保留 |
-| 依赖镜像源 | `registry.npmjs.org` | 250 处 | 切到 npm 官方源 |
+| 依赖镜像源 | 国内 npm 镜像域名 | 250 处 | 切到 npm 官方源 |
 | 构建缓存入历史 | `git rev-list --objects` | 171 MB | filter-repo 剔除 |
 | `.env` / 凭据文件 | `git log --diff-filter=A` | 从未提交 | 无需处理 |
+
+> ⚠️ **本手册刻意不写出具体的敏感字符串**（原始姓名、邮箱、路径前缀）。
+> 写在这里等于重新把它们泄露进仓库——扫描命令请自行填入要查的关键词。
 
 ### 1.2 仓库体积
 
@@ -43,7 +46,7 @@ Turbopack 构建缓存目录 `.next-stale-1794222289/`，里面单个 `.sst` 文
 | 操作 | 手段 | 结果 |
 |---|---|---|
 | 剔除构建缓存 | `--path-glob '.next-stale-*/**' --invert-paths` | 0 残留 |
-| 改写作者身份 | `--mailmap .mailmap` | 统一为 `aiintel-dev@users.noreply.github.com` |
+| 改写作者身份 | `--mailmap .mailmap`（文件在本地，不入库） | 统一为 `aiintel-dev@users.noreply.github.com` |
 | 替换历史文本路径 | `--replace-text` | 绝对路径 → 占位符 |
 
 ---
@@ -90,7 +93,7 @@ AIINTEL_N8N_CONTAINER / AIINTEL_PG_CONTAINER
 
 ```bash
 # 全 refs bundle，任何操作都能回滚
-BACKUP_DIR//aiintel-web-prepush-*.bundle
+<BACKUP_DIR>/aiintel-web-prepush-*.bundle
 ```
 
 ### 步骤 1：创建 GitHub 仓库
@@ -103,6 +106,12 @@ BACKUP_DIR//aiintel-web-prepush-*.bundle
   - Public——已完成去敏，技术上可公开
 - **不要勾选**任何 `Add a README file` / `.gitignore` / `LICENSE`（本地已有，避免冲突）
 - **不要**初始化 git（本地已有）
+
+也可以用 `gh` CLI 一行建好：
+
+```bash
+gh repo create <你的用户名>/ai-intel-web --private --source=. --remote=origin
+```
 
 ### 步骤 2：拿到远程地址
 
@@ -119,10 +128,7 @@ https://github.com/<你的用户名>/ai-intel-web.git
 **推荐做法 —— 推送备份区里的重写版镜像**（历史已脱敏、体积已瘦身）：
 
 ```bash
-cd BACKUP_DIR//rewrite-test.git
-
-# 改名为正式目录
-mv rewrite-test.git ai-intel-web-github.git
+cd <BACKUP_DIR>/ai-intel-web-github.git
 
 # 绑定远程并推送
 git remote add origin git@github.com:<你的用户名>/ai-intel-web.git
@@ -136,20 +142,20 @@ git push -u origin ui/redesign
 **或者 —— 在本地仓库上重写后推送**（保留原目录的 git 配置）：
 
 ```bash
-cd PROJECT_ROOT//7\ 我的短视频/AI自媒体/ai-intel-web
+cd <REPO>
 
 # 备份当前 .git（保险）
-cp -r .git BACKUP_DIR//git-dir-backup-$(date +%Y%m%d%H%M%S)
+cp -r .git <BACKUP_DIR>/git-dir-backup-$(date +%Y%m%d%H%M%S)
 
 # 同样的 filter-repo 命令（工具需先装：pip install git-filter-repo）
+# ⚠️ 把下面的 <占位符> 换成你机器上的真实路径
 git filter-repo --force \
   --path-glob '.next-stale-*/**' --invert-paths \
   --mailmap .mailmap \
   --replace-text <(printf '%s\n' \
-    'literal:PROJECT_ROOT/==>PROJECT_ROOT/' \
-    'literal:BACKUP_DIR/==>BACKUP_DIR/' \
-    'literal:PROJECT_ROOT/==>PROJECT_ROOT/' \
-    'literal:HOME_DIR/==>HOME_DIR/')
+    'literal:<REPO_ROOT>/==>PROJECT_ROOT/' \
+    'literal:<BACKUP_DIR>==>BACKUP_DIR/' \
+    'literal:<HOME_DIR>==>HOME_DIR/')
 
 git remote add origin git@github.com:<你的用户名>/ai-intel-web.git
 git push -u origin main
@@ -210,23 +216,31 @@ npm run dev
 
 - [ ] 仓库首页没有 `.next-stale` 目录
 - [ ] 随便点开一个历史提交，作者显示 `AI Intel Dev`，**不是**个人邮箱
-- [ ] 搜索框搜 `SELF_NAME/` / `zjzforfb` → 0 结果
-- [ ] 搜索框搜 `/Users/` → 0 结果（占位符是 `<HOME_DIR>`）
+- [ ] 搜索框搜你脱敏掉的姓名 / 项目名 → 0 结果
+- [ ] 搜索框搜用户主目录路径前缀 → 0 结果（占位符是 `<HOME_DIR>`）
 - [ ] `docs/phase3-delivery-report.md` 里是 `<项目根>/自有项目/<项目A>` 这种占位符
 - [ ] 仓库首页 README 正常渲染
 
 ### 命令行一键自检
 
+把 `PATTERNS` 换成你实际要查的关键词（不要写进仓库）：
+
 ```bash
-cd BACKUP_DIR//rewrite-test.git
-for pat in "SELF_NAME/" "dev@example.com" "HOME_DIR/" "EXTERNAL_VOLUME/" "next-stale"; do
-  n=$(git rev-list --objects --all | git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' \
-      | awk '$1=="blob"{print $2"\t"$3}' \
-      | while IFS=$'\t' read -r sha path; do
-          git cat-file blob "$sha" 2>/dev/null | grep -qF "$pat" && echo "$path"
-        done | sort -u | wc -l)
+cd <BACKUP_DIR>/ai-intel-web-github.git
+
+# 扫全历史所有 blob
+git rev-list --objects --all \
+  | git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' \
+  | awk '$1=="blob"{print $2"\t"$3}' > /tmp/blobs.txt
+
+PATTERNS=("姓名关键词" "你的邮箱" "$HOME" "/Volumes/你的卷名" "next-stale")
+for pat in "${PATTERNS[@]}"; do
+  n=$(while IFS=$'\t' read -r sha path; do
+        git cat-file blob "$sha" 2>/dev/null | /usr/bin/grep -qF "$pat" && echo "$path"
+      done < /tmp/blobs.txt | sort -u | wc -l | tr -d ' ')
   echo "$pat → $n"
 done
+rm -f /tmp/blobs.txt
 ```
 
 全部为 0 即为安全。

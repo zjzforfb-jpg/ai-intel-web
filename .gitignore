@@ -47,6 +47,10 @@ yarn-error.log*
 # 模板见 ops/paths.sh
 ops/paths.local.sh
 
+# .mailmap 含「旧邮箱 → 新邮箱」的映射，入库等于泄露旧邮箱
+# 但 git 会照常读取工作区里的 .mailmap，所以本地脱敏功能不受影响
+.mailmap
+
 # 备份产物目录（若在仓库内）
 backups/
 *.bundle
