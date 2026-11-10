@@ -10,7 +10,7 @@
 [![React 19](https://img.shields.io/badge/React-19-087ea4)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6)](https://www.typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169e1)](https://www.postgresql.org)
-[![License](https://img.shields.io/badge/license-personal-8a8a8a)]()
+[![License](https://img.shields.io/badge/license-MIT-8a8a8a)](LICENSE)
 
 </div>
 
@@ -259,4 +259,8 @@ report_failures    n8n 校验失败兜底落库
 
 ## License
 
-仅供个人学习与内部使用。
+MIT — 见 [LICENSE](LICENSE)。
+
+> ⚠️ **部署前必读**：本项目是**个人本地工具**，不是 SaaS。它没有登录、没有多租户、不要部署到公网。
+> 直接跑在你自己机器上（`127.0.0.1`）是最合适的用法。
+> 数据库账号密码、n8n 加密密钥等凭据全部走环境变量，仓库里只有 `.env.example` 模板。
